@@ -1,7 +1,10 @@
 on:
   push:
-    branches:
-      - master
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   release-windows:
@@ -17,10 +20,9 @@ jobs:
           default: true
       - uses: Swatinem/rust-cache@v1
       - run: make win
-      - uses: actions/upload-artifact@v3
+      - uses: softprops/action-gh-release@v1
         with:
-          name: windows-release
-          path: dist/*.exe
+          files: dist/*.exe
   release-mac:
     runs-on: macos-latest
     steps:
@@ -34,7 +36,6 @@ jobs:
           default: true
       - uses: Swatinem/rust-cache@v1
       - run: make osx
-      - uses: actions/upload-artifact@v3
+      - uses: softprops/action-gh-release@v1
         with:
-          name: mac-release
-          path: dist/*.dmg
+          files: dist/*.dmg
