@@ -11,7 +11,8 @@ jobs:
       - uses: actions-rs/toolchain@v1
         name: Setup Cargo Toolchain 🛎️
         with:
-          toolchain: minimal
+          toolchain: stable
+          profile: minimal
           default: true
       - uses: Swatinem/rust-cache@v1
       - run: make win
@@ -22,8 +23,9 @@ jobs:
       - uses: actions-rs/toolchain@v1
         name: Setup Cargo Toolchain 🛎️
         with:
+          toolchain: stable
           target: aarch64-apple-darwin
-          toolchain: minimal
+          profile: minimal
           default: true
       - uses: Swatinem/rust-cache@v1
-      - run: make mac
+      - run: make osx
