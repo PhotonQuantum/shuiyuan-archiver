@@ -13,6 +13,22 @@
 
 3. 将要下载的贴子的完整地址粘贴到输入框中，选择保存位置，然后点击下载。
 
+贴子将以 页码.html 的文件名存储。注意在移动存档时，请务必保留 resources 文件夹。
+
+## 疑难解答
+
+### 无法在程序里粘贴文字
+
+右键点击是无效的，请使用 Ctrl+C 和 Ctrl+V 来粘贴。
+
+### 程序界面假死不动，但是任务管理器中却没有显示无响应 (Windows)
+
+可能是显示引擎在 Windows 上的 Bug，如果假死前点击了下载，那么程序已经在后台开始工作，可以稍等之后在输出文件夹查看是否已经下载完成。
+
+### 程序闪退无法打开 (Windows)
+
+请检查你的显卡驱动是否是最新的。过老或者不支持的显卡驱动会导致 OpenGL 引擎无法初始化。
+
 ## 许可
 
 本项目遵循 MIT 协议。详情请参见 [LICENSE](LICENSE.txt)。以下文本为节选译注，仅英文原文有法律效力。
@@ -34,6 +50,24 @@ A tool to archive an article on [Shuiyuan BBS](https://shuiyuan.sjtu.edu.cn) of 
 
 3. Paste the full URL of the article you want to download into the input box,
 select the location to save, and click "下载"(download).
+
+The article will be saved as "{page}.html". Note that when moving the archive, do not delete the "resources" folder.
+
+## Troubleshooting
+
+### Cannot paste text in the program
+
+Please use Ctrl+C and Ctrl+V to paste.
+
+### The program is frozen but the task manager shows it's still responding (Windows)
+
+If the program is frozen before you click the download button, the program has already started working in the background.
+You can wait for a while and then check the output folder to see if the article has been downloaded.
+
+### The program crashes and won't open (Windows)
+
+Please check your video card driver is up-to-date.
+Older or unsupported video card drivers may cause OpenGL engine to fail.
 
 ## License
 
