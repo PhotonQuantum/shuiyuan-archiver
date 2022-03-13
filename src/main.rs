@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 #![allow(clippy::module_name_repetitions)]
 
 use std::path::{Path, PathBuf};
@@ -28,8 +29,6 @@ struct State {
 }
 
 fn main() -> Result<()> {
-    color_eyre::install()?;
-
     let rt = Runtime::new()?;
     let client: Arc<Mutex<Option<SJTUClient>>> = Arc::new(Mutex::new(None));
 
