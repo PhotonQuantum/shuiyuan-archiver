@@ -16,6 +16,10 @@ jobs:
           default: true
       - uses: Swatinem/rust-cache@v1
       - run: make win
+      - uses: actions/upload-artifact@v3
+        with:
+          name: windows-release
+          path: dist/*
   release-mac:
     runs-on: macos-latest
     steps:
@@ -29,3 +33,7 @@ jobs:
           default: true
       - uses: Swatinem/rust-cache@v1
       - run: make osx
+      - uses: actions/upload-artifact@v3
+        with:
+          name: mac-release
+          path: dist/*
