@@ -4,9 +4,12 @@ use std::time::UNIX_EPOCH;
 use eyre::{bail, ContextCompat, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use reqwest::{Client, ClientBuilder, Url};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::multipart::{Form, Part};
+use reqwest::{ClientBuilder, Url};
+use reqwest_middleware::{ClientBuilder as ClientWithMiddlewareBuilder, ClientWithMiddleware};
+use reqwest_retry::policies::ExponentialBackoff;
+use reqwest_retry::RetryTransientMiddleware;
 use serde_json::Value;
 
 const LOGIN_URL: &str = "https://i.sjtu.edu.cn/jaccountlogin";
@@ -15,11 +18,11 @@ const CAPTCHA_URL: &str = "https://jaccount.sjtu.edu.cn/jaccount/captcha";
 
 #[derive(Clone)]
 pub struct SJTUClient {
-    client: Client,
+    client: ClientWithMiddleware,
 }
 
 impl Deref for SJTUClient {
-    type Target = Client;
+    type Target = ClientWithMiddleware;
 
     fn deref(&self) -> &Self::Target {
         &self.client
@@ -32,8 +35,14 @@ impl SJTUClient {
             Lazy::new(|| Regex::new(r#"uuid": '(.*)'"#).expect("invalid regex"));
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"));
-        headers.insert("Accept-Language", HeaderValue::from_static("zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-TW;q=0.6"));
+        headers.insert(
+            "Accept-Language",
+            HeaderValue::from_static("zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-TW;q=0.6"),
+        );
 
+        let policy = ExponentialBackoff::builder()
+            .backoff_exponent(2)
+            .build_with_max_retries(5);
         let client = ClientBuilder::new()
             .default_headers(headers)
             .user_agent("Mozilla/5.0 (X11; Linux x86_64; rv:71.0) Gecko/20100101 Firefox/71.0")
@@ -97,6 +106,10 @@ impl SJTUClient {
             bail!("Login failed");
         }
 
-        Ok(Self { client })
+        Ok(Self {
+            client: ClientWithMiddlewareBuilder::new(client)
+                .with(RetryTransientMiddleware::new_with_policy(policy))
+                .build(),
+        })
     }
 }

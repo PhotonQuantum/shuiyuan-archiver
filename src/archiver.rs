@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 use std::fs;
-
 use std::path::{Path, PathBuf};
 
 use eyre::Result;
 use futures::future::try_join_all;
-
-use crate::MainWindow;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use slint::Weak;
 use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
+
+use crate::MainWindow;
 
 #[derive(Eq, PartialEq)]
 enum ResourceType {
@@ -21,7 +20,7 @@ enum ResourceType {
 }
 
 pub async fn download(
-    client: &Client,
+    client: &ClientWithMiddleware,
     topic: u64,
     output: &Path,
     ui: AsyncMutex<Weak<MainWindow>>,
@@ -99,7 +98,7 @@ pub async fn download(
     Ok(())
 }
 
-async fn fetch_resource(client: &Client, src: String, dest: PathBuf) -> Result<()> {
+async fn fetch_resource(client: &ClientWithMiddleware, src: String, dest: PathBuf) -> Result<()> {
     let src = if src.starts_with("http") {
         src
     } else {
@@ -110,7 +109,11 @@ async fn fetch_resource(client: &Client, src: String, dest: PathBuf) -> Result<(
     Ok(())
 }
 
-async fn fetch_page(client: &Client, topic: u64, page: u64) -> Result<Option<String>> {
+async fn fetch_page(
+    client: &ClientWithMiddleware,
+    topic: u64,
+    page: u64,
+) -> Result<Option<String>> {
     let resp = client
         .get(format!("https://shuiyuan.sjtu.edu.cn/t/topic/{}", topic))
         .query(&[("page", page)])

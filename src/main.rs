@@ -16,8 +16,8 @@ use tokio::sync::Mutex as AsyncMutex;
 use crate::archiver::download;
 use crate::client::SJTUClient;
 
-mod client;
 mod archiver;
+mod client;
 
 slint::include_modules!();
 
@@ -35,41 +35,49 @@ fn main() -> Result<()> {
     let ui = MainWindow::new();
     let state = State {
         rt: rt.handle().clone(),
-        client: client.clone(),
+        client,
         ui: ui.as_weak(),
     };
 
     let state_ = state.clone();
-    ui.on_login_cb(
-        move || {
-            let state = state_.clone();
-            let user = state.ui.unwrap().get_username().to_string();
-            let pass = state.ui.unwrap().get_password().to_string();
-            state.rt.clone().spawn(async move {
-                let state = state.clone();
-                state.ui.upgrade_in_event_loop(|handle|handle.set_login_disabled(true));
+    ui.on_login_cb(move || {
+        let state = state_.clone();
+        let user = state.ui.unwrap().get_username().to_string();
+        let pass = state.ui.unwrap().get_password().to_string();
+        state.rt.clone().spawn(async move {
+            let state = state.clone();
+            state
+                .ui
+                .upgrade_in_event_loop(|handle| handle.set_login_disabled(true));
 
-                let new_client = SJTUClient::new(&user, &pass).await;
-                match new_client {
-                    Ok(new_client) => {
-                        *state.client.lock() = Some(new_client);
-                        state.ui.upgrade_in_event_loop(|handle| {
-                            handle.set_state("fetch".into());
-                        });
-                    }
-                    Err(e) => {
-                        state.ui.upgrade_in_event_loop(move |handle| {
-                            handle.set_login_disabled(false);
-                            handle.set_login_error(format!("用户名密码错误或验证码识别失败，可多试几次\n{}", e).into());
-                        });
-                    }
+            let new_client = SJTUClient::new(&user, &pass).await;
+            match new_client {
+                Ok(new_client) => {
+                    *state.client.lock() = Some(new_client);
+                    state.ui.upgrade_in_event_loop(|handle| {
+                        handle.set_state("fetch".into());
+                    });
                 }
-            });
+                Err(e) => {
+                    state.ui.upgrade_in_event_loop(move |handle| {
+                        println!("{:?}", e);
+                        handle.set_login_disabled(false);
+                        handle.set_login_error(
+                            format!("用户名密码错误或验证码识别失败，可多试几次\n{}", e).into(),
+                        );
+                    });
+                }
+            }
         });
+    });
 
     ui.on_parse_cb(|url| {
-        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"https://shuiyuan.sjtu.edu.cn/t/topic/(\d+)"#).unwrap());
-        let topic_str = RE.captures(&url).and_then(|c|Some(c.get(1)?.as_str())).unwrap_or_default();
+        static RE: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r#"https://shuiyuan.sjtu.edu.cn/t/topic/(\d+)"#).unwrap());
+        let topic_str = RE
+            .captures(&url)
+            .and_then(|c| Some(c.get(1)?.as_str()))
+            .unwrap_or_default();
         topic_str.parse().unwrap_or_default()
     });
 
@@ -82,14 +90,15 @@ fn main() -> Result<()> {
         }
     });
 
-    let state_ = state.clone();
     ui.on_fetch_cb(move |topic| {
-        let state = state_.clone();
+        let state = state.clone();
         let client = state.client.lock().as_ref().unwrap().clone();
         let output = PathBuf::from(state.ui.unwrap().get_fetch_output().to_string());
         state.rt.clone().spawn(async move {
             let state = state.clone();
-            state.ui.upgrade_in_event_loop(|handle|handle.set_fetch_disabled(true));
+            state
+                .ui
+                .upgrade_in_event_loop(|handle| handle.set_fetch_disabled(true));
             let locked_ui = AsyncMutex::new(state.ui.clone());
             let output = find_available_path(&*output);
             let res = download(&*client, topic as u64, &*output, locked_ui).await;
@@ -110,12 +119,12 @@ fn main() -> Result<()> {
 
 fn find_available_path(path: &Path) -> PathBuf {
     if !path.exists() {
-        return path.to_path_buf()
+        return path.to_path_buf();
     }
 
-    let files = path.read_dir().map(|iter|iter.count()).unwrap_or(1);
+    let files = path.read_dir().map(|iter| iter.count()).unwrap_or(1);
     if files == 0 {
-        return path.to_path_buf()
+        return path.to_path_buf();
     }
 
     let base = path.join("水源存档");
@@ -123,10 +132,10 @@ fn find_available_path(path: &Path) -> PathBuf {
         for i in 1..100 {
             let new_path = path.join(format!("水源存档 ({})", i));
             if !new_path.exists() {
-                return new_path
+                return new_path;
             }
         }
     }
 
-    return base.to_path_buf()
+    base
 }
