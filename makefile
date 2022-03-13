@@ -11,9 +11,9 @@ osx:
 	ln -s /Applications dist/bundle/Applications
 	hdiutil create -volname ${APP_NAME} -srcfolder dist/bundle -o dist/${APP_NAME}.dmg
 win:
-	cargo build --release --target x86_64-pc-windows-msvc
+	cargo build --release --target x86_64-pc-windows-gnu
 	mkdir -p dist
-	cp target/x86_64-pc-windows-msvc/release/shuiyuan-archiver.exe dist/${APP_NAME}.exe
+	cp target/x86_64-pc-windows-gnu/release/shuiyuan-archiver.exe dist/${APP_NAME}.exe
 clean:
 	rm -rf dist
 	cargo clean
