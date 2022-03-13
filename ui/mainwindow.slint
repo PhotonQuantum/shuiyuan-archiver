@@ -1,0 +1,164 @@
+import { Button, HorizontalBox, VerticalBox, LineEdit, GridBox } from "std-widgets.slint";
+
+FetchRect := VerticalBox {
+    property<string> raw_topic;
+    property<string> output;
+    property<int> topic: 0;
+    property<string> msg;
+    property<bool> disabled;
+    callback parse(string) -> int;
+    callback fetch(int);
+    callback browse(string) -> string;
+
+    GridBox { 
+        Row {
+            Text { 
+                horizontal-alignment: right;
+                vertical-alignment: center;
+                text: "水源 URL:";
+            }
+            LineEdit {
+                text: raw_topic;
+                enabled: !disabled;
+                horizontal-stretch: 1;
+                edited => {
+                    raw-topic = self.text;
+                    topic = parse(raw-topic);
+                }
+            }
+        }
+        Row {
+            Text { 
+                horizontal-alignment: right;
+                vertical-alignment: center;
+                text: "保存到:";
+            }
+            HorizontalLayout { 
+                spacing: 8px;
+                LineEdit {
+                    text <=> output;
+                    enabled: !disabled;
+                }
+                Button {
+                    text: "浏览";
+                    enabled: !disabled;
+                    clicked => { 
+                        output = browse(output);
+                    }
+                }
+            }
+        }
+    }
+    Text {
+        vertical-stretch: 1;
+        vertical-alignment: bottom;
+        horizontal-alignment: center;
+        text: "\{msg}";
+    }
+    Button {
+        text: "下载";
+        enabled: !disabled && topic != 0 && output != "";
+        clicked => {
+            fetch(topic);
+        }
+    }
+}
+
+LoginRect := VerticalBox {
+    property<string> user;
+    property<string> pass;
+    property<string> err;
+    property<bool> disabled: false;
+    callback login();
+
+    GridBox { 
+        Row{
+            Text{
+                vertical-alignment: center;
+                horizontal-alignment: right;
+                text: "用户名:";
+            }
+            LineEdit { 
+                text <=> user;
+                enabled: !disabled;
+                horizontal-stretch: 1;
+            }
+        }
+        Row{
+            Text{
+                vertical-alignment: center;
+                horizontal-alignment: right;
+                text: "密码:";
+            }
+            LineEdit { 
+                text <=> pass;
+                enabled: !disabled;
+                input-type: password;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+    Text{
+        horizontal-alignment: center;
+        vertical-alignment: bottom;
+        vertical-stretch: 1;
+        color: red;
+        text: err;
+        visible: err != "";
+    }
+    Button {
+        text: "登录";
+        enabled: !disabled && user != "" && pass != "";
+        clicked => {
+            login();
+        }
+    }
+}
+
+export MainWindow := Window {
+    property<string> state: "login";
+
+    property<string> username;
+    property<string> password;
+    property<string> login-error;
+    property<bool> login-disabled: false;
+
+    property<string> fetch-msg: "等待";
+    property<string> fetch-output: "";
+    property<bool> fetch-disabled: false;
+
+    callback login-cb();
+    callback parse-cb(string) -> int;
+    callback fetch-cb(int);
+    callback browse-cb(string) -> string;
+
+    title: "水源社区存档工具";
+    width: 350px;
+    height: 180px;
+
+    LoginRect {
+        user <=> username;
+        pass <=> password;
+        err <=> login-error;
+        disabled <=> login-disabled;
+        visible: state == "login";
+        login => {
+            login-cb();
+        }
+    }
+    FetchRect {
+        disabled <=> fetch-disabled;
+        visible: state == "fetch";
+        output <=> fetch-output;
+        msg <=> fetch-msg;
+        parse(s) => {
+            parse-cb(s);
+        }
+        fetch(t) => {
+            fetch-cb(t);
+        }
+        browse(old) => {
+            browse-cb(old)
+        }
+    }
+}
