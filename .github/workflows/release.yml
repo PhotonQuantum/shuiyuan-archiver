@@ -3,6 +3,9 @@ on:
     branches:
       - master
 
+permissions:
+  contents: write
+
 jobs:
   release-windows:
     runs-on: windows-latest
@@ -20,6 +23,10 @@ jobs:
         with:
           name: windows-release
           path: dist/*.exe
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: dist/*.exe
   release-mac:
     runs-on: macos-latest
     steps:
@@ -37,3 +44,7 @@ jobs:
         with:
           name: mac-release
           path: dist/*.dmg
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: dist/*.dmg
