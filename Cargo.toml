@@ -5,6 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [profile.release]
+strip = "debuginfo"
 lto = true
 
 [package.metadata.bundle]

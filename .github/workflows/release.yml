@@ -19,7 +19,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: windows-release
-          path: dist/*
+          path: dist/*.exe
   release-mac:
     runs-on: macos-latest
     steps:
@@ -36,4 +36,4 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: mac-release
-          path: dist/*
+          path: dist/*.dmg
