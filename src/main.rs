@@ -137,5 +137,5 @@ fn find_available_path(path: &Path, topic: u64) -> PathBuf {
 
 fn get_current_time() -> String {
     let now = Local::now();
-    format!("{}-{:02}-{:02}_{:02}:{:02}:{:02}", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second())
+    format!("{}-{:02}-{:02}_{:02}-{:02}-{:02}", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second())
 }
