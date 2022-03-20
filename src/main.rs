@@ -120,16 +120,7 @@ fn main() -> Result<()> {
 }
 
 fn find_available_path(path: &Path, topic: i32) -> PathBuf {
-    if !path.exists() {
-        return path.to_path_buf();
-    }
-
-    let files = path.read_dir().map(|iter| iter.count()).unwrap_or(1);
-    if files == 0 {
-        return path.to_path_buf();
-    }
-    let base = path.join("水源存档");
-    let new_path = base.join(format!("{}_{}", topic, get_current_time()));
+    let new_path = path.join(format!("水源存档_{}_{}", topic, get_current_time()));
     new_path
 }
 
