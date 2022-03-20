@@ -16,9 +16,7 @@ use tokio::sync::Mutex as AsyncMutex;
 use crate::archiver::download;
 use crate::client::SJTUClient;
 
-extern crate chrono;
-
-use chrono::{Datelike, Local, Timelike};
+use chrono::Local;
 
 mod archiver;
 mod client;
@@ -104,7 +102,7 @@ fn main() -> Result<()> {
                 .ui
                 .upgrade_in_event_loop(|handle| handle.set_fetch_disabled(true));
             let locked_ui = AsyncMutex::new(state.ui.clone());
-            let output = find_available_path(&*output, topic as u64);
+            let output = find_available_path(&*output, topic);
             let res = download(&*client, topic as u64, &*output, locked_ui).await;
             state.ui.upgrade_in_event_loop(move |handle| {
                 handle.set_fetch_disabled(false);
@@ -121,7 +119,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn find_available_path(path: &Path, topic: u64) -> PathBuf {
+fn find_available_path(path: &Path, topic: i32) -> PathBuf {
     if !path.exists() {
         return path.to_path_buf();
     }
@@ -131,11 +129,10 @@ fn find_available_path(path: &Path, topic: u64) -> PathBuf {
         return path.to_path_buf();
     }
     let base = path.join("水源存档");
-    let new_path = base.join(format!("{}_", topic) + &get_current_time());
+    let new_path = base.join(format!("{}_{}", topic, get_current_time()));
     new_path
 }
 
 fn get_current_time() -> String {
-    let now = Local::now();
-    format!("{}-{:02}-{:02}_{:02}-{:02}-{:02}", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second())
+    Local::now().format("%Y-%m-%d_%H-%M-%S").to_string()
 }
