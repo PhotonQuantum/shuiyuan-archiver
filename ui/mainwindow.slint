@@ -10,7 +10,7 @@ FetchRect := VerticalBox {
     property<bool> anonymous;
     callback parse(string) -> int;
     callback fetch(int);
-    callback browse(string) -> string;
+    callback browse();
 
     GridBox { 
         Row {
@@ -45,7 +45,7 @@ FetchRect := VerticalBox {
                     text: "浏览";
                     enabled: !disabled;
                     clicked => { 
-                        output = browse(output);
+                        browse();
                     }
                 }
             }
@@ -129,7 +129,7 @@ export MainWindow := Window {
     callback login-cb();
     callback parse-cb(string) -> int;
     callback fetch-cb(int, string, bool);
-    callback browse-cb(string) -> string;
+    callback browse-cb();
 
     title: "水源社区存档工具";
     width: 350px;
@@ -158,8 +158,8 @@ export MainWindow := Window {
         fetch(t) => {
             fetch-cb(t, fetch-output, fetch-anonymous);
         }
-        browse(old) => {
-            browse-cb(old)
+        browse() => {
+            browse-cb();
         }
     }
 }

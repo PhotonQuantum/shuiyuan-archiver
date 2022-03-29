@@ -10,7 +10,7 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
-use rfd::FileDialog;
+use rfd::{AsyncFileDialog, FileDialog};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use rsa::pkcs1::ToRsaPublicKey;
 use slint::Weak;
@@ -139,13 +139,17 @@ fn main() -> Result<()> {
         topic_str.parse().unwrap_or_default()
     });
 
-    ui.on_browse_cb(|old| {
-        let path = FileDialog::new().pick_folder();
-        if let Some(path) = path {
-            path.to_string_lossy().to_string().into()
-        } else {
-            old
-        }
+    let state_ = state.clone();
+    ui.on_browse_cb(move || {
+        let state = state_.clone();
+        state.rt.clone().spawn(async move {
+            let path = AsyncFileDialog::new().pick_folder().await;
+            if let Some(path) = path {
+                state.ui.upgrade_in_event_loop(move |ui| {
+                    ui.set_fetch_output(path.path().to_string_lossy().to_string().into())
+                });
+            }
+        });
     });
 
     ui.on_fetch_cb(move |topic, output, anonymous| {
