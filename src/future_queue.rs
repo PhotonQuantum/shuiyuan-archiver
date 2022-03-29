@@ -1,6 +1,6 @@
 use std::future::Future;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use futures::Stream;
 use parking_lot::{Mutex, RwLock};
@@ -9,8 +9,8 @@ use tokio::task::JoinHandle;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub struct FutQueue<F>
-    where
-        F: Future,
+where
+    F: Future,
 {
     task_tx: RwLock<Option<UnboundedSender<F>>>,
     resp_rx: Mutex<Option<UnboundedReceiver<F::Output>>>,
@@ -18,16 +18,19 @@ pub struct FutQueue<F>
     handler: JoinHandle<()>,
 }
 
-impl<F> Drop for FutQueue<F> where F: Future {
+impl<F> Drop for FutQueue<F>
+where
+    F: Future,
+{
     fn drop(&mut self) {
         self.handler.abort();
     }
 }
 
 impl<F> FutQueue<F>
-    where
-        F: 'static + Future + Send,
-        F::Output: Send,
+where
+    F: 'static + Future + Send,
+    F::Output: Send,
 {
     pub fn new() -> Self {
         let (task_tx, mut task_rx) = unbounded_channel();
@@ -63,7 +66,7 @@ impl<F> FutQueue<F>
     pub fn max_count(&self) -> usize {
         self.max_count.load(Ordering::SeqCst)
     }
-    pub fn take_stream(&self) -> impl Stream<Item=F::Output> {
+    pub fn take_stream(&self) -> impl Stream<Item = F::Output> {
         UnboundedReceiverStream::new(self.resp_rx.lock().take().expect("queue already closed"))
     }
 }

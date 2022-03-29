@@ -10,9 +10,9 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
-use rfd::{AsyncFileDialog, FileDialog};
-use rsa::{RsaPrivateKey, RsaPublicKey};
+use rfd::AsyncFileDialog;
 use rsa::pkcs1::ToRsaPublicKey;
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use slint::Weak;
 use tokio::runtime::{Handle, Runtime};
 use tokio::sync::Mutex as AsyncMutex;
@@ -24,12 +24,12 @@ use crate::store::Store;
 
 mod archiver;
 mod client;
-mod middleware;
 mod future_queue;
+mod middleware;
 mod models;
 mod rate_limit;
-mod url_scheme;
 mod store;
+mod url_scheme;
 
 slint::include_modules!();
 
@@ -46,7 +46,7 @@ struct State {
 fn browser_auth(key: &RsaPublicKey) -> Result<()> {
     let query = &[
         ("application_name", "Shuiyuan Archiver"),
-        ("client_id", "2914191ff8e95fd2f6e9e504b74f6820be804072"),
+        ("client_id", "fbLF9rqADqQ%3AAPA91bGewJA-kSC7OEZVFoEWGdNwhVvQEu4BwKuqR53gvFRN9kxAHX5cv7Q7KZDPtJQ9WgK8QbfVRFZtRrG5oOudbPpV7gBMtQON0C-Fz8djlFCoXARE25DvDxfnlQ4HuZjOOeD2qdyb"),
         ("scopes", "session_info,read"),
         ("nonce", "1"),
         ("public_key", &key.to_pkcs1_pem().unwrap()),
@@ -80,7 +80,9 @@ fn main() -> Result<()> {
             ui.set_login_disabled(true);
         });
         if let Some(cached_token) = state_.store.get_token() {
-            if let Ok(client) = create_client_with_token(&cached_token, state_.rate_limit_watcher).await {
+            if let Ok(client) =
+                create_client_with_token(&cached_token, state_.rate_limit_watcher).await
+            {
                 *state_.client.lock() = Some(client);
                 state_.ui.upgrade_in_event_loop(|ui| {
                     ui.set_state("fetch".into());
@@ -120,9 +122,7 @@ fn main() -> Result<()> {
                     state.ui.upgrade_in_event_loop(move |handle| {
                         println!("{:?}", e);
                         handle.set_login_disabled(false);
-                        handle.set_login_error(
-                            format!("登录失败\n{}", e).into(),
-                        );
+                        handle.set_login_error(format!("登录失败\n{}", e).into());
                     });
                 }
             }

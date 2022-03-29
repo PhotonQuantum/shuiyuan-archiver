@@ -1,6 +1,6 @@
 use eyre::{Context, Result};
-use reqwest::ClientBuilder;
 use reqwest::header::{HeaderName, HeaderValue};
+use reqwest::ClientBuilder;
 use reqwest_middleware::{ClientBuilder as ClientBuilderWithMiddleware, ClientWithMiddleware};
 use reqwest_retry::policies::ExponentialBackoffBuilder;
 use reqwest_retry::RetryTransientMiddleware;
@@ -18,26 +18,35 @@ struct Payload {
 pub fn decrypt_payload(payload: &str, key: &RsaPrivateKey) -> Result<String> {
     let ciphertext = base64::decode(&payload.replace(' ', "").trim())?;
 
-    let decrypted = key
-        .decrypt(PaddingScheme::PKCS1v15Encrypt, &ciphertext)?;
+    let decrypted = key.decrypt(PaddingScheme::PKCS1v15Encrypt, &ciphertext)?;
 
     Ok(serde_json::from_slice::<Payload>(&decrypted)?.key)
 }
 
-pub async fn create_client(payload: &str, key: &RsaPrivateKey, rate_limit_watcher: RateLimitWatcher) -> Result<(String, ClientWithMiddleware)> {
+pub async fn create_client(
+    payload: &str,
+    key: &RsaPrivateKey,
+    rate_limit_watcher: RateLimitWatcher,
+) -> Result<(String, ClientWithMiddleware)> {
     let token = decrypt_payload(payload, key).context("Failed to decrypt payload")?;
-    Ok((token.clone(), create_client_with_token(&token, rate_limit_watcher).await?))
+    Ok((
+        token.clone(),
+        create_client_with_token(&token, rate_limit_watcher).await?,
+    ))
 }
 
-pub async fn create_client_with_token(token: &str, rate_limit_watcher: RateLimitWatcher) -> Result<ClientWithMiddleware> {
+pub async fn create_client_with_token(
+    token: &str,
+    rate_limit_watcher: RateLimitWatcher,
+) -> Result<ClientWithMiddleware> {
     let client = ClientBuilder::new()
         .default_headers(
             [(
                 HeaderName::from_static("user-api-key"),
                 HeaderValue::from_str(token)?,
             )]
-                .into_iter()
-                .collect(),
+            .into_iter()
+            .collect(),
         )
         .build()?;
 

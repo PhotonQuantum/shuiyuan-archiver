@@ -1,6 +1,6 @@
 use std::cmp::max;
-use std::sync::Arc;
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -21,11 +21,18 @@ impl RateLimitWatcher {
         let (stop_tx, stop_rx) = channel();
         let wait_until_in_thread = wait_until.clone();
         thread::spawn(move || {
-            while let Err(RecvTimeoutError::Timeout) = stop_rx.recv_timeout(Duration::from_millis(500)) {
+            while let Err(RecvTimeoutError::Timeout) =
+                stop_rx.recv_timeout(Duration::from_millis(500))
+            {
                 let wait_until_in_thread = wait_until_in_thread.clone();
                 ui.upgrade_in_event_loop(move |ui| {
                     if let Some(wait_until) = wait_until_in_thread.lock().as_ref() {
-                        ui.set_fetch_retry_after(wait_until.duration_since(SystemTime::now()).unwrap_or_default().as_secs() as i32);
+                        ui.set_fetch_retry_after(
+                            wait_until
+                                .duration_since(SystemTime::now())
+                                .unwrap_or_default()
+                                .as_secs() as i32,
+                        );
                     } else {
                         ui.set_fetch_retry_after(0);
                     }

@@ -7,9 +7,9 @@ use std::sync::Arc;
 
 use chrono::Local;
 use eyre::{Context, ContextCompat, Result};
-use fake::Fake;
 use fake::faker::name::en::Name;
-use futures::future::{BoxFuture, join_all};
+use fake::Fake;
+use futures::future::{join_all, BoxFuture};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use handlebars::Handlebars;
@@ -23,8 +23,10 @@ use tokio::sync::Mutex as AsyncMutex;
 use tokio::task::spawn_blocking;
 
 use crate::future_queue::FutQueue;
+use crate::models::{
+    Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic,
+};
 use crate::MainWindow;
-use crate::models::{Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic};
 
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
 const TEMPLATE: &str = include_str!("../templates/index.hbs");
@@ -189,7 +191,11 @@ impl Archiver {
             number: post.post_number,
             username,
             created_at: post.created_at.to_string(),
-            created_at_display: post.created_at.with_timezone(&Local).format("%Y年%m月%d日 %H:%M").to_string(),
+            created_at_display: post
+                .created_at
+                .with_timezone(&Local)
+                .format("%Y年%m月%d日 %H:%M")
+                .to_string(),
             content: cooked,
             likes,
             reply_to: post.reply_to_post_number,
@@ -242,8 +248,13 @@ impl Archiver {
         let posts_count = resp.posts_count;
         let page_size = resp.post_stream.posts.len();
         let pages = (posts_count as f64 / page_size as f64).ceil() as usize;
-        let mut futs: FuturesUnordered<_> = resp.post_stream.stream.wrap_err("Missing `stream` field in `post_stream`")?.iter().enumerate()
-            .group_by(|(i, _)| i / page_size + 1)    // page
+        let mut futs: FuturesUnordered<_> = resp
+            .post_stream
+            .stream
+            .wrap_err("Missing `stream` field in `post_stream`")?
+            .iter()
+            .enumerate()
+            .group_by(|(i, _)| i / page_size + 1) // page
             .into_iter()
             .map(|(page, group)| {
                 let post_ids = group.map(|(_, id)| id).copied().collect();
@@ -276,7 +287,12 @@ impl Archiver {
                 "https://shuiyuan.sjtu.edu.cn/t/{}/posts.json",
                 self.topic_id
             ))
-            .query(&post_ids.into_iter().map(|i| ("post_ids[]", i)).collect_vec())
+            .query(
+                &post_ids
+                    .into_iter()
+                    .map(|i| ("post_ids[]", i))
+                    .collect_vec(),
+            )
             .send()
             .await?
             .json()
@@ -287,9 +303,9 @@ impl Archiver {
                 .into_iter()
                 .map(|p| self.process_post(p)),
         )
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>>>()?;
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>>>()?;
         let params = Topic {
             posts: processed,
             prev_page: if page > 1 { Some(page - 1) } else { None },

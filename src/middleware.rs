@@ -3,8 +3,8 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use reqwest::{Request, Response, StatusCode};
-use reqwest_middleware::{Middleware, Next};
 use reqwest_middleware::Result;
+use reqwest_middleware::{Middleware, Next};
 use task_local_extensions::Extensions;
 
 use crate::RateLimitWatcher;
@@ -19,7 +19,7 @@ impl RetryMiddleware {
         req: Request,
         extensions: &'a mut Extensions,
         next: Next<'a>,
-    ) -> Pin<Box<dyn Future<Output=Result<Response>> + 'a + Send>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Response>> + 'a + Send>> {
         let duplicate_request = req.try_clone().expect("Request object is not clonable");
         let cloned_next = next.clone();
         Box::pin(async move {
@@ -31,7 +31,9 @@ impl RetryMiddleware {
                             eprintln!("Wait for {} seconds", delay + 1);
                             self.rate_limit_watcher.register_limit(delay + 1);
                             tokio::time::sleep(Duration::from_secs(delay + 1)).await;
-                            return self.execute(duplicate_request, extensions, cloned_next).await;
+                            return self
+                                .execute(duplicate_request, extensions, cloned_next)
+                                .await;
                         }
                     }
                     Ok(payload)
