@@ -27,13 +27,14 @@ use crate::MainWindow;
 use crate::models::{Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic};
 
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
+const TEMPLATE: &str = include_str!("../templates/index.hbs");
 
 pub static HANDLEBARS: Lazy<Handlebars<'_>> = Lazy::new(|| {
     let mut handlebars = Handlebars::new();
     handlebars.register_escape_fn(ToString::to_string);
     handlebars.set_strict_mode(true);
     handlebars
-        .register_template_file("index", "./templates/index.hbs")
+        .register_template_string("index", TEMPLATE)
         .unwrap();
     handlebars
 });
