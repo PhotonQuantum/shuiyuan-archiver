@@ -2,10 +2,11 @@
 #![allow(clippy::module_name_repetitions)]
 
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 
 use chrono::Local;
-use eyre::Result;
+use eyre::{ContextCompat, Result};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use regex::Regex;
@@ -16,6 +17,7 @@ use rsa::{RsaPrivateKey, RsaPublicKey};
 use slint::Weak;
 use tokio::runtime::{Handle, Runtime};
 use tokio::sync::Mutex as AsyncMutex;
+use uuid::Uuid;
 
 use crate::archiver::Archiver;
 use crate::client::{create_client, create_client_with_token};
@@ -46,7 +48,7 @@ struct State {
 fn browser_auth(key: &RsaPublicKey) -> Result<()> {
     let query = &[
         ("application_name", "Shuiyuan Archiver"),
-        ("client_id", "fbLF9rqADqQ%3AAPA91bGewJA-kSC7OEZVFoEWGdNwhVvQEu4BwKuqR53gvFRN9kxAHX5cv7Q7KZDPtJQ9WgK8QbfVRFZtRrG5oOudbPpV7gBMtQON0C-Fz8djlFCoXARE25DvDxfnlQ4HuZjOOeD2qdyb"),
+        ("client_id", &generate_client_id()?),
         ("scopes", "session_info,read"),
         ("nonce", "1"),
         ("public_key", &key.to_pkcs1_pem().unwrap()),
@@ -188,4 +190,11 @@ fn find_available_path(path: &Path, topic: i32) -> PathBuf {
 
 fn get_current_time() -> String {
     Local::now().format("%Y-%m-%d_%H-%M-%S").to_string()
+}
+
+fn generate_client_id() -> Result<String> {
+    let base_uuid = Uuid::from_str("1bf328bf-239b-46ed-9696-92fdcb51f2b1").unwrap();
+    let mac = mac_address::get_mac_address()?.wrap_err("No mac address found")?;
+    let client_id = Uuid::new_v5(&base_uuid, &mac.bytes());
+    Ok(client_id.to_string())
 }
