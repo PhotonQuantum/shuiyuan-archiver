@@ -21,6 +21,10 @@
 
 右键点击是无效的，请使用 Ctrl+C 和 Ctrl+V 来粘贴。
 
+### 粘贴授权码到程序中没有反应，或者授权码残缺
+
+显示问题，其实内容已经成功粘贴，点登录即可。
+
 ### 程序界面假死不动，但是任务管理器中却没有显示无响应 (Windows)
 
 可能是显示引擎在 Windows 上的 Bug，如果假死前点击了下载，那么程序已经在后台开始工作，可以稍等之后在输出文件夹查看是否已经下载完成。
@@ -58,6 +62,10 @@ The article will be saved as "{page}.html". Note that when moving the archive, d
 ### Cannot paste text in the program
 
 Please use Ctrl+C and Ctrl+V to paste.
+
+### Text pasted into the program is broken
+
+This is a display issue. Just ignore it and continue.
 
 ### The program is frozen but the task manager shows it's still responding (Windows)
 
