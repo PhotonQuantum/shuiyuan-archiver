@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>{{title}}</title>
+    <link href="resources/desktop_a6ebc8d83f637bb00f4f3fe2bed708de5b2f46cb.css" media="all"
+          rel="stylesheet" data-target="desktop">
+    <link href="resources/desktop_theme_18_6044d2798548d883edb7b504e9678e59bef1ea37.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="18" data-theme-name="discotoc">
+    <link href="resources/desktop_theme_59_0cc413d2f69104e201591ee89508c6059f2237e7.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="59"
+          data-theme-name="discourse-watermark">
+    <link href="resources/desktop_theme_34_b6cc8e9ec8740a61600e8db01d7b9428a3940549.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="34" data-theme-name="pdf previews">
+    <link href="resources/desktop_theme_52_4859297324a16e5bb8c1f9d01f3bf0ffa6a9b29c.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="52" data-theme-name="remove-excerpt">
+    <link href="resources/desktop_theme_58_c33a83ba3ef5ab3b25e5a5619c4161eb0f495dce.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="58"
+          data-theme-name="remove-hidden-gap">
+    <link href="resources/desktop_theme_37_127867e7b59b2a0102d5189a36d24792f6a176f0.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="37"
+          data-theme-name="remove-shield-icon">
+    <link href="resources/desktop_theme_56_ecee7c2e40c9669a25d0f4e842a1b86202e00733.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="56"
+          data-theme-name="remove-solved-text">
+    <link href="resources/desktop_theme_54_e006d487a3f75a32724103e42208dca26c361ac8.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="54" data-theme-name="retort">
+    <link href="resources/desktop_theme_3_8828b367cb8a28b2296c7bfe6f433ad504773044.css"
+          media="all" rel="stylesheet" data-target="desktop_theme" data-theme-id="3" data-theme-name="亮">
+    <script src="resources/79ef348eb9f79f287b6c835ff09169b855d710f2.js"></script>
+</head>
+
+<body class="crawler">
+<script src="resources/205da9bd7e50046f118af4e49e6a562905a2ca26.js"></script>
+<script src="resources/dd73fca2e692e339380e847ce439a9e2a083d9bb.js"></script>
+<header>
+    <a href="https://shuiyuan.sjtu.edu.cn/">
+        <img src="resources/f8a88a3a02eaa06e8d2c51ea944df2f7abdc374e.png" alt="水源社区"
+             id="site-logo" style="max-width: 150px;">
+    </a>
+</header>
+<div id="main-outlet" class="wrap">
+    <div id="topic-title">
+        <h1>
+            <a href="https://shuiyuan.sjtu.edu.cn/t/topic/{{id}}">{{title}}</a>
+        </h1>
+
+        <div class="topic-category" itemscope="" itemtype="http://schema.org/BreadcrumbList">
+            {{#each categories}}
+                <span itemprop="itemListElement" itemscope="" itemtype="http://schema.org/ListItem">
+                  <a class="badge-wrapper bullet" itemprop="item">
+                    <span class="badge-category-bg" style="background-color: #{{this.color}}"></span>
+                    <span class="badge-category clear-badge">
+                      <span class="category-name" itemprop="name">{{this.name}}</span>
+                    </span>
+                  </a>
+                </span>
+            {{/each}}
+        </div>
+
+        <div class="topic-category">
+            <div class="discourse-tags list-tags">
+                {{#each tags}}
+                    <a class="discourse-tag" rel="tag">{{this}}</a>
+                {{/each}}
+            </div>
+        </div>
+    </div>
+
+    {{#each posts}}
+        <div itemscope="" itemtype="http://schema.org/DiscussionForumPosting" class="topic-body crawler-post">
+            <div class="crawler-post-meta">
+                {{#if this.avatar}}
+                    <img alt width="20" height="20" src="{{this.avatar}}" class="avatar">
+                {{/if}}
+                <span class="creator" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+                <a itemprop="url">
+                    <span itemprop="name">{{this.username}}</span>
+                </a>
+                    {{#if this.name}}
+                        ({{this.name}})
+                    {{/if}}
+          </span>
+                <span class="crawler-post-infos">
+                <time itemprop="datePublished" datetime="{{this.created_at}}" class="post-time">
+                    {{this.created_at_display}}
+                </time>
+                    {{#if this.reply_to}}
+                        <span itemprop="position">(回复 #{{this.reply_to}}) #{{this.number}}</span>
+                    {{else}}
+                        <span itemprop="position">#{{this.number}}</span>
+                    {{/if}}
+            </span>
+            </div>
+            <div class="post" itemprop="articleBody">
+                {{this.content}}
+            </div>
+
+            {{#if this.emojis}}
+                <div itemprop="interactionStatistic" itemscope="" itemtype="http://schema.org/InteractionCounter">
+                    <meta itemprop="interactionType" content="http://schema.org/LikeAction">
+                    <meta itemprop="userInteractionCount" content="1">
+                    {{#each this.emojis}}
+                        <img alt height="20" width="20" src="resources/{{@key}}.png"/>
+                        <span style="padding-right: 5px">{{this}}</span>
+                    {{/each}}
+                </div>
+            {{/if}}
+            {{#if this.likes}}
+                <div itemprop="interactionStatistic" itemscope="" itemtype="http://schema.org/InteractionCounter">
+                    <meta itemprop="interactionType" content="http://schema.org/LikeAction">
+                    <meta itemprop="userInteractionCount" content="1">
+                    <span class="post-likes">{{this.likes}} 个赞</span>
+                </div>
+            {{/if}}
+
+        </div>
+    {{/each}}
+    <div role="navigation" itemscope="" itemtype="http://schema.org/SiteNavigationElement"
+         class="topic-body crawler-post">
+        {{#if prev_page}}
+            <span itemprop="name"><a rel="prev" itemprop="url" href="{{prev_page}}.html">← 上一页</a></span>
+        {{/if}}
+        {{#if next_page}}
+            <span itemprop="name"><b><a rel="next" itemprop="url" href="{{next_page}}.html">下一页 →</a></b></span>
+        {{/if}}
+    </div>
+</div>
+<footer class="container wrap">
+    <p class="powered-by-link">由 <a href="https://www.discourse.org/">Discourse</a> 提供技术支持，启用 JavaScript 以获得最佳体验</p>
+</footer>
+<div style="text-align: center;">©2022 上海交通大学</div>
+<br>
+</body>
+</html>

@@ -2,14 +2,14 @@
 
 一个将上海交通大学[水源社区](https://shuiyuan.sjtu.edu.cn)的文章存档的工具。
 
-<img src="screenshots/2.png" alt="screenshot_2" style="zoom:50%;" />
+<img src="screenshots/1.png" alt="screenshot_2" style="zoom:50%;" />
 
 ## 使用方法
 
 1. 运行下载的 exe (Windows) 或 dmg (Mac) 文件
 > 如果系统询问您是否要运行程序，请选择允许。
 
-2. 输入用户名和密码登录。
+2. 在弹出的浏览器窗口中登录水源论坛，选择授权，并将授权代码按 Ctrl+V 粘贴到程序中。
 
 3. 将要下载的贴子的完整地址粘贴到输入框中，选择保存位置，然后点击下载。
 
@@ -46,7 +46,7 @@ A tool to archive an article on [Shuiyuan BBS](https://shuiyuan.sjtu.edu.cn) of 
 1. Run the downloaded exe (Windows) or dmg (Mac) file.
 > If the system asks you whether to run the program, please select "Allow".
 
-2. Enter your username and password, and click "登录" (login).
+2. Login to the Shuiyuan BBS, click "Authorize" and paste the authorization code into the program.
 
 3. Paste the full URL of the article you want to download into the input box,
 select the location to save, and click "下载"(download).

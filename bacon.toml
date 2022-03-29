@@ -17,11 +17,7 @@ ctrl-d = "scroll-page(1)"
 [jobs]
 
 [jobs.clippy]
-command = ["cargo", "clippy", "--workspace", "--tests", "--color", "always", "--", "-W", "clippy::all", "-W", "clippy::nursery", "-W", "clippy::pedantic"]
-need_stdout = false
-
-[jobs.check]
-command = ["cargo", "clippy", "--workspace", "--tests", "--color", "always"]
+command = ["cargo", "clippy", "--tests", "--color", "always"]
 need_stdout = false
 
 [jobs.test]

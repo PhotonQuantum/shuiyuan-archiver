@@ -1,11 +1,13 @@
-import { Button, HorizontalBox, VerticalBox, LineEdit, GridBox } from "std-widgets.slint";
+import { Button, HorizontalBox, VerticalBox, LineEdit, TextEdit, GridBox, CheckBox } from "std-widgets.slint";
 
 FetchRect := VerticalBox {
     property<string> raw_topic;
     property<string> output;
     property<int> topic: 0;
     property<string> msg;
+    property<int> retry-after: 5;
     property<bool> disabled;
+    property<bool> anonymous;
     callback parse(string) -> int;
     callback fetch(int);
     callback browse(string) -> string;
@@ -49,6 +51,19 @@ FetchRect := VerticalBox {
             }
         }
     }
+    CheckBox {
+        text: "打码用户名及头像";
+        checked <=> anonymous;
+        enabled: !disabled;
+    }
+    Text {
+        vertical-stretch: 1;
+        vertical-alignment: bottom;
+        horizontal-alignment: center;
+        color: red;
+        visible: retry-after != 0;
+        text: "被限流！等待 \{retry-after} 秒后重试";
+    }
     Text {
         vertical-stretch: 1;
         vertical-alignment: bottom;
@@ -65,39 +80,22 @@ FetchRect := VerticalBox {
 }
 
 LoginRect := VerticalBox {
-    property<string> user;
-    property<string> pass;
+    property<string> token;
     property<string> err;
     property<bool> disabled: false;
     callback login();
 
-    GridBox { 
-        Row{
-            Text{
-                vertical-alignment: center;
-                horizontal-alignment: right;
-                text: "用户名:";
-            }
-            LineEdit { 
-                text <=> user;
-                enabled: !disabled;
-                horizontal-stretch: 1;
-            }
+    VerticalBox { 
+        Text{
+            horizontal-alignment: center;
+            text: "请在自动打开的浏览器中授权登录，并粘贴授权码";
         }
-        Row{
-            Text{
-                vertical-alignment: center;
-                horizontal-alignment: right;
-                text: "密码:";
-            }
-            LineEdit { 
-                text <=> pass;
-                enabled: !disabled;
-                input-type: password;
-                horizontal-stretch: 1;
-            }
+        TextEdit{
+            vertical-stretch: 1;
+            enabled: !disabled;
+            text <=> token;
         }
-    }
+     }
     Text{
         horizontal-alignment: center;
         vertical-alignment: bottom;
@@ -108,7 +106,7 @@ LoginRect := VerticalBox {
     }
     Button {
         text: "登录";
-        enabled: !disabled && user != "" && pass != "";
+        enabled: !disabled && token != "";
         clicked => {
             login();
         }
@@ -118,27 +116,28 @@ LoginRect := VerticalBox {
 export MainWindow := Window {
     property<string> state: "login";
 
-    property<string> username;
-    property<string> password;
+    property<string> login-token;
     property<string> login-error;
     property<bool> login-disabled: false;
 
     property<string> fetch-msg: "等待";
     property<string> fetch-output: "";
     property<bool> fetch-disabled: false;
+    property<bool> fetch-anonymous: false;
+    property<int> fetch-retry-after: 0;
 
     callback login-cb();
     callback parse-cb(string) -> int;
-    callback fetch-cb(int);
+    callback fetch-cb(int, string, bool);
     callback browse-cb(string) -> string;
 
     title: "水源社区存档工具";
     width: 350px;
-    height: 180px;
+    height: 220px;
+    icon: @image-url("../platforms/icon.png");
 
     LoginRect {
-        user <=> username;
-        pass <=> password;
+        token <=> login-token;
         err <=> login-error;
         disabled <=> login-disabled;
         visible: state == "login";
@@ -151,11 +150,13 @@ export MainWindow := Window {
         visible: state == "fetch";
         output <=> fetch-output;
         msg <=> fetch-msg;
+        anonymous <=> fetch-anonymous;
+        retry-after <=> fetch-retry-after;
         parse(s) => {
             parse-cb(s);
         }
         fetch(t) => {
-            fetch-cb(t);
+            fetch-cb(t, fetch-output, fetch-anonymous);
         }
         browse(old) => {
             browse-cb(old)
