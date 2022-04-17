@@ -1,6 +1,5 @@
-use eyre::{Context, Result};
-use reqwest::header::{HeaderName, HeaderValue};
 use reqwest::ClientBuilder;
+use reqwest::header::{HeaderName, HeaderValue};
 use reqwest_middleware::{ClientBuilder as ClientBuilderWithMiddleware, ClientWithMiddleware};
 use reqwest_retry::policies::ExponentialBackoffBuilder;
 use reqwest_retry::RetryTransientMiddleware;
@@ -9,6 +8,7 @@ use serde::Deserialize;
 
 use crate::middleware::RetryMiddleware;
 use crate::RateLimitWatcher;
+use crate::Result;
 
 #[derive(Debug, Deserialize)]
 struct Payload {
@@ -23,18 +23,6 @@ pub fn decrypt_payload(payload: &str, key: &RsaPrivateKey) -> Result<String> {
     Ok(serde_json::from_slice::<Payload>(&decrypted)?.key)
 }
 
-pub async fn create_client(
-    payload: &str,
-    key: &RsaPrivateKey,
-    rate_limit_watcher: RateLimitWatcher,
-) -> Result<(String, ClientWithMiddleware)> {
-    let token = decrypt_payload(payload, key).context("Failed to decrypt payload")?;
-    Ok((
-        token.clone(),
-        create_client_with_token(&token, rate_limit_watcher).await?,
-    ))
-}
-
 pub async fn create_client_with_token(
     token: &str,
     rate_limit_watcher: RateLimitWatcher,
@@ -45,15 +33,12 @@ pub async fn create_client_with_token(
                 HeaderName::from_static("user-api-key"),
                 HeaderValue::from_str(token)?,
             )]
-            .into_iter()
-            .collect(),
+                .into_iter()
+                .collect(),
         )
         .build()?;
 
     let client = ClientBuilderWithMiddleware::new(client)
-        // .with(RateLimitMiddleware::new(Quota::per_second(
-        //     NonZeroU32::new(5).unwrap(),
-        // )))
         .with(RetryMiddleware::new(rate_limit_watcher))
         .with(RetryTransientMiddleware::new_with_policy(
             ExponentialBackoffBuilder::default().build_with_max_retries(3),
@@ -64,7 +49,6 @@ pub async fn create_client_with_token(
         .get("https://shuiyuan.sjtu.edu.cn/session/current.json")
         .send()
         .await?
-        .error_for_status()
-        .wrap_err("invalid credential")?;
+        .error_for_status()?;
     Ok(client)
 }

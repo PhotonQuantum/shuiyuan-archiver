@@ -1,0 +1,5 @@
+/target
+/dist
+.DS_STORE
+/.idea
+WixTools

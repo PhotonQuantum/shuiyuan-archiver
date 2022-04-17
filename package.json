@@ -1,0 +1,24 @@
+{
+  "name": "shuiyuan-archiver",
+  "source": "src/index.html",
+  "scripts": {
+    "tauri": "tauri",
+    "start": "parcel",
+    "build": "parcel build --no-source-maps"
+  },
+  "devDependencies": {
+    "@tauri-apps/tauricon": "github:tauri-apps/tauricon",
+    "@types/react": "^18.0.5",
+    "@types/react-dom": "^18.0.1",
+    "parcel": "^2.4.1"
+  },
+  "dependencies": {
+    "@mantine/core": "^4.1.3",
+    "@mantine/hooks": "^4.1.3",
+    "@tauri-apps/api": "^1.0.0-rc.3",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "recoil": "^0.7.2",
+    "tabler-icons-react": "^1.45.0"
+  }
+}

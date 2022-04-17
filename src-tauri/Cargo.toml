@@ -1,11 +1,14 @@
 [package]
 name = "shuiyuan-archiver"
-version = "0.2.1"
+description = "一个将上海交通大学水源社区的文章存档的工具"
+authors = ["LightQuantum <self@lightquantum.me>"]
+version = "0.3.0"
 edition = "2021"
 build = "build.rs"
+repository = "https://github.com/PhotonQuantum/shuiyuan-archiver"
 
 [profile.release]
-strip = "debuginfo"
+strip = true
 lto = true
 
 [profile.dev.package.num-bigint-dig]
@@ -16,7 +19,6 @@ async-trait = "0.1"
 base64 = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 directories = "4.0"
-eyre = "0.6"
 fake = "2.4"
 flate2 = "1.0"
 futures = "0.3"
@@ -24,27 +26,30 @@ handlebars = "4.2"
 itertools = "0.10"
 mac_address = "1.1"
 once_cell = "1.10"
-parking_lot = "0.12"
 rand = "0.8"
 regex = "1.5"
 reqwest = { version = "0.11", features = ["multipart", "json", "cookies"] }
 reqwest-middleware = "0.1"
 reqwest-retry = "0.1"
-rfd = "0.8"
 rsa = "0.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-slint = "0.2"
 tar = "0.4"
 task-local-extensions = "0.1"
-tokio = { version = "1.17", features = ["full"] }
+tauri = { version = "1.0.0-rc.5", features = ["dialog"] }
+tokio = { version = "1.17", features = ["rt", "sync", "time", "macros"] }
 tokio-stream = "0.1"
 uuid = { version = "0.8", features = ["v4", "v5"] }
 webbrowser = "0.6"
 
 [build-dependencies]
-slint-build = "0.2"
+tauri-build = { version = "1.0.0-rc.5", features = [] }
 
-[target.'cfg(windows)'.build-dependencies]
-winres = "0.1"
+[features]
+# by default Tauri runs in production mode
+# when `tauri dev` runs it is executed with `cargo run --no-default-features` if `devPath` is an URL
+default = [ "custom-protocol" ]
+# this feature is used used for production builds where `devPath` points to the filesystem
+# DO NOT remove this
+custom-protocol = [ "tauri/custom-protocol" ]
