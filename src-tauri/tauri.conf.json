@@ -32,7 +32,6 @@
         "useBootstrapper": false
       },
       "macOS": {
-        "license": "../LICENSE.txt",
         "frameworks": [],
         "useBootstrapper": false,
         "exceptionDomain": "",
