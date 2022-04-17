@@ -42,8 +42,8 @@ pub trait ErrorExt {
 }
 
 impl<T, E> ErrorExt for Result<T, E>
-    where
-        E: Error + Send + Sync + 'static,
+where
+    E: Error + Send + Sync + 'static,
 {
     type OkType = T;
     type ErrType = WrappedError;

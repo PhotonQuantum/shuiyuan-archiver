@@ -7,9 +7,9 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use chrono::Local;
-use fake::Fake;
 use fake::faker::name::en::Name;
-use futures::future::{BoxFuture, join_all};
+use fake::Fake;
+use futures::future::{join_all, BoxFuture};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use handlebars::Handlebars;
@@ -306,9 +306,9 @@ impl Archiver {
                 .into_iter()
                 .map(|p| self.process_post(p)),
         )
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>>>()?;
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>>>()?;
         let params = Topic {
             posts: processed,
             prev_page: if page > 1 { Some(page - 1) } else { None },
