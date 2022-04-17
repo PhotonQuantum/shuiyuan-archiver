@@ -58,7 +58,9 @@ fn token_from_oauth(oauth_key: String, key: tauri::State<RsaPrivateKey>) -> Stri
 
 #[tauri::command]
 fn set_token(token: String, state: tauri::State<Store>) {
-    state.set_token(&token);
+    if let Err(e) = state.set_token(&token) {
+        sentry::capture_error(&*e);
+    }
 }
 
 #[tauri::command]
@@ -137,6 +139,13 @@ fn open_saved_folder(saved_folder: tauri::State<Mutex<Option<PathBuf>>>) {
 }
 
 fn main() {
+    let _guard = option_env!("SENTRY_DSN").map(|dsn| {
+        sentry::init((dsn, sentry::ClientOptions {
+            release: sentry::release_name!(),
+            ..Default::default()
+        }))
+    });
+
     let store = Store::new().expect("failed to initialize store");
     let key = RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
     let saved_folder: Mutex<Option<PathBuf>> = Mutex::new(None);
