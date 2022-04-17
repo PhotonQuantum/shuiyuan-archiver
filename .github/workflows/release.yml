@@ -52,6 +52,8 @@ jobs:
         with:
           version: latest
           run_install: true
-      - uses: tauri-apps/tauri-action@v0
+      - uses: PhotonQuantum/tauri-action@dev
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.platform == 'macos-latest' && '-v --target universal-apple-darwin' || '-v' }}
