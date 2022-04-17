@@ -4,29 +4,28 @@ use std::fs::File;
 use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use chrono::Local;
-use eyre::{Context, ContextCompat, Result};
-use fake::faker::name::en::Name;
 use fake::Fake;
-use futures::future::{join_all, BoxFuture};
+use fake::faker::name::en::Name;
+use futures::future::{BoxFuture, join_all};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use handlebars::Handlebars;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
-use slint::Weak;
-use tokio::sync::Mutex as AsyncMutex;
+use tauri::{Window, Wry};
 use tokio::task::spawn_blocking;
 
+use crate::error::ErrorExt;
 use crate::future_queue::FutQueue;
 use crate::models::{
     Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic,
 };
-use crate::MainWindow;
+use crate::Result;
 
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
 const TEMPLATE: &str = include_str!("../templates/index.hbs");
@@ -50,7 +49,7 @@ pub struct Archiver {
     fut_queue: Arc<FutQueue<BoxFuture<'static, Result<()>>>>,
     anonymous: bool,
     fake_name_project: Arc<Mutex<HashMap<String, String>>>,
-    ui: Arc<AsyncMutex<Weak<MainWindow>>>,
+    window: Window<Wry>,
 }
 
 fn extract_resources(to: impl AsRef<Path>) -> Result<()> {
@@ -59,15 +58,13 @@ fn extract_resources(to: impl AsRef<Path>) -> Result<()> {
     Ok(())
 }
 
-// TODO 抽楼导致楼抓不准，根据 stream 重新分页
-
 impl Archiver {
     pub fn new(
         client: ClientWithMiddleware,
         topic_id: usize,
         to: PathBuf,
         anonymous: bool,
-        ui: AsyncMutex<Weak<MainWindow>>,
+        window: Window<Wry>,
     ) -> Self {
         Self {
             client,
@@ -77,7 +74,7 @@ impl Archiver {
             fut_queue: Arc::new(FutQueue::new()),
             anonymous,
             fake_name_project: Arc::new(Default::default()),
-            ui: Arc::new(ui),
+            window,
         }
     }
     pub async fn download(self) -> Result<()> {
@@ -92,9 +89,12 @@ impl Archiver {
             msg?;
             count += 1;
             let max_count = self.fut_queue.max_count();
-            self.ui.lock().await.upgrade_in_event_loop(move |ui| {
-                ui.set_fetch_msg(format!("已下载 {}/{} 个资源文件", count, max_count).into());
-            });
+            self.window
+                .emit(
+                    "progress-event",
+                    format!("正在下载第 {}/{} 个资源文件", count, max_count),
+                )
+                .expect("failed to emit progress");
         }
         Ok(())
     }
@@ -169,7 +169,7 @@ impl Archiver {
         let cooked = self.prepare_cooked(cooked);
         let (name, username, avatar, cooked) = if self.anonymous {
             let mut cooked = cooked;
-            let mut fake_name_project = self.fake_name_project.lock();
+            let mut fake_name_project = self.fake_name_project.lock().unwrap();
             fake_name_project.iter().for_each(|(k, v)| {
                 cooked = cooked.replace(k, v);
             });
@@ -268,9 +268,12 @@ impl Archiver {
         while let Some(res) = futs.next().await {
             res?;
             count += 1;
-            self.ui.lock().await.upgrade_in_event_loop(move |ui| {
-                ui.set_fetch_msg(format!("已获取 {}/{} 页", count, pages).into());
-            });
+            self.window
+                .emit(
+                    "progress-event",
+                    format!("正在获取第 {}/{} 页", count, pages),
+                )
+                .expect("Fail to emit progress");
         }
         Ok(())
     }
@@ -303,9 +306,9 @@ impl Archiver {
                 .into_iter()
                 .map(|p| self.process_post(p)),
         )
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>>>()?;
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
         let params = Topic {
             posts: processed,
             prev_page: if page > 1 { Some(page - 1) } else { None },
@@ -316,7 +319,7 @@ impl Archiver {
         Ok(HANDLEBARS.render_to_write("index", &params, output)?)
     }
     fn download_asset(&self, from: String, to: PathBuf) {
-        if !self.downloaded.lock().insert(from.clone()) {
+        if !self.downloaded.lock().unwrap().insert(from.clone()) {
             return;
         }
         let client = self.client.clone();
@@ -329,6 +332,7 @@ impl Archiver {
     }
 }
 
+#[allow(clippy::to_string_in_format_args)]
 fn extract_asset_url(content: &str) -> Vec<String> {
     static IMAGE_RE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r#"https?://shuiyuan.sjtu.edu.cn[^)'",]+.(?:jpg|jpeg|gif|png)"#).unwrap()

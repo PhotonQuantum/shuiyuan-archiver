@@ -1,0 +1,66 @@
+{
+  "package": {
+    "productName": "水源存档工具",
+    "version": "0.3.0"
+  },
+  "build": {
+    "distDir": "../dist",
+    "devPath": "http://localhost:1234",
+    "beforeDevCommand": "pnpm start",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "tauri": {
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "me.lightquantum.shuiyuan-archiver",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "resources": [],
+      "externalBin": [],
+      "copyright": "Copyright © 2022 LightQuantum.",
+      "category": "Productivity",
+      "shortDescription": "一个将上海交通大学水源社区的文章存档的工具。",
+      "longDescription": "",
+      "deb": {
+        "depends": [],
+        "useBootstrapper": false
+      },
+      "macOS": {
+        "license": "../LICENSE.txt",
+        "frameworks": [],
+        "useBootstrapper": false,
+        "exceptionDomain": "",
+        "signingIdentity": null,
+        "providerShortName": null,
+        "entitlements": "entitlements.plist"
+      },
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
+      }
+    },
+    "updater": {
+      "active": false
+    },
+    "allowlist": {},
+    "windows": [
+      {
+        "title": "水源存档工具",
+        "width": 500,
+        "height": 350,
+        "resizable": false,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}

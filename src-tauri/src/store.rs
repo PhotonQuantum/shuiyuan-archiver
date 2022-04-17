@@ -2,7 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use directories::ProjectDirs;
-use eyre::Result;
+
+use crate::Result;
 
 #[derive(Debug)]
 pub struct Store {
@@ -10,10 +11,10 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn new() -> Result<Store> {
+    pub fn new() -> Result<Self> {
         let dir = ProjectDirs::from("me", "lightquantum", "shuiyuan-archiver").unwrap();
         let cache_dir = dir.cache_dir().to_owned();
-        Ok(Store { cache_dir })
+        Ok(Self { cache_dir })
     }
     pub fn get_token(&self) -> Option<String> {
         fs::read_to_string(self.cache_dir.join("token")).ok()
