@@ -111,9 +111,16 @@ async fn archive(
             let path = find_available_path(&*PathBuf::from(save_at), topic as i32);
             *saved_folder.lock().unwrap() = Some(path.clone());
             let archiver = Archiver::new(client, topic, path, mask_user, window);
-            archiver.download().await.map_err(|e| e.to_string())
+            if let Err(e) = archiver.download().await {
+                sentry::capture_error(&*e);
+                return Err(e.to_string());
+            }
+            Ok(())
         }
-        Err(e) => Err(e.to_string()),
+        Err(e) => {
+            sentry::capture_error(&*e);
+            Err(e.to_string())
+        }
     }
 }
 
