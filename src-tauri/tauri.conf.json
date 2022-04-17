@@ -1,6 +1,6 @@
 {
   "package": {
-    "productName": "水源存档工具",
+    "productName": "ShuiyuanArchiver",
     "version": "0.3.0"
   },
   "build": {
