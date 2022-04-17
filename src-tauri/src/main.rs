@@ -1,6 +1,6 @@
 #![cfg_attr(
-all(not(debug_assertions), target_os = "windows"),
-windows_subsystem = "windows"
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
 )]
 #![allow(clippy::module_name_repetitions)]
 
@@ -140,10 +140,13 @@ fn open_saved_folder(saved_folder: tauri::State<Mutex<Option<PathBuf>>>) {
 
 fn main() {
     let _guard = option_env!("SENTRY_DSN").map(|dsn| {
-        sentry::init((dsn, sentry::ClientOptions {
-            release: sentry::release_name!(),
-            ..Default::default()
-        }))
+        sentry::init((
+            dsn,
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                ..Default::default()
+            },
+        ))
     });
 
     let store = Store::new().expect("failed to initialize store");
@@ -182,7 +185,6 @@ fn main() {
             archive,
             open_saved_folder
         ])
-        .menu(menu)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
