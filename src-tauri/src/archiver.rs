@@ -151,10 +151,7 @@ impl Archiver {
             .unwrap_or_default();
         post.retorts.iter().for_each(|r| {
             self.download_asset(
-                format!(
-                    "https://shuiyuan.sjtu.edu.cn/images/emoji/google/{}.png",
-                    r.emoji
-                ),
+                format!("/images/emoji/google/{}.png", r.emoji),
                 self.to.join("resources").join(format!("{}.png", r.emoji)),
             );
         });
@@ -162,7 +159,7 @@ impl Archiver {
         let avatar_filename = avatar_url.split('/').last().unwrap();
         if !self.anonymous {
             self.download_asset(
-                format!("https://shuiyuan.sjtu.edu.cn{}", avatar_url),
+                avatar_url.clone(),
                 self.to.join("resources").join(avatar_filename),
             );
         }
@@ -218,6 +215,7 @@ impl Archiver {
             })
             .collect();
         for (url, name) in &asset_urls {
+            content = content.replace(&format!("https://shuiyuan.sjtu.edu.cn{}", url), name);
             content = content.replace(url, name);
         }
 
@@ -324,7 +322,12 @@ impl Archiver {
         }
         let client = self.client.clone();
         self.fut_queue.add_future(Box::pin(async move {
-            let resp = client.get(from).send().await?.bytes().await?;
+            let resp = client
+                .get(format!("https://shuiyuan.sjtu.edu.cn{}", from))
+                .send()
+                .await?
+                .bytes()
+                .await?;
             let mut to = File::create(to)?;
             spawn_blocking(move || to.write_all(&resp)).await??;
             Ok(())
@@ -335,16 +338,20 @@ impl Archiver {
 #[allow(clippy::to_string_in_format_args)]
 fn extract_asset_url(content: &str) -> Vec<String> {
     static IMAGE_RE: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r#"https?://shuiyuan.sjtu.edu.cn[^)'",]+.(?:jpg|jpeg|gif|png)"#).unwrap()
+        Regex::new(
+            r#"https?://shuiyuan.sjtu.edu.cn([^)'",]+.(?:jpg|jpeg|gif|png|JPG|JPEG|GIF|PNG))"#,
+        )
+        .unwrap()
     });
-    static VIDEO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"/uploads[^)'",\\]+.mp4"#).unwrap());
+    static VIDEO_RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r#"/uploads[^)'",\\]+.(?:mp4|MP4|mov|MOV|avi|AVI)"#).unwrap());
     IMAGE_RE
         .captures_iter(content)
-        .map(|cap| cap[0].to_string())
+        .map(|cap| cap[1].to_string())
         .chain(
             VIDEO_RE
                 .captures_iter(content)
-                .map(|cap| format!("https://shuiyuan.sjtu.edu.cn{}", cap[0].to_string())),
+                .map(|cap| cap[0].to_string()),
         )
         .collect()
 }
