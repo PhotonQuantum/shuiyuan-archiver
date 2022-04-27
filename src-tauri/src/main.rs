@@ -12,7 +12,7 @@ use std::sync::Mutex;
 
 use chrono::Local;
 use reqwest::Client;
-use rsa::pkcs1::ToRsaPublicKey;
+use rsa::pkcs1::EncodeRsaPublicKey;
 use rsa::RsaPrivateKey;
 use tauri::{AboutMetadata, Menu, MenuItem, Submenu, Wry};
 use uuid::Uuid;
@@ -41,7 +41,7 @@ fn open_browser(key: tauri::State<RsaPrivateKey>) {
         ("client_id", &generate_client_id()),
         ("scopes", "session_info,read"),
         ("nonce", "1"),
-        ("public_key", &key.to_public_key().to_pkcs1_pem().unwrap()),
+        ("public_key", &key.to_public_key().to_pkcs1_pem(Default::default()).unwrap()),
     ];
     let parsed_query = serde_urlencoded::to_string(query).expect("failed to encode query");
     let url = format!(

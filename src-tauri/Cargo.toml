@@ -31,21 +31,21 @@ regex = "1.5"
 reqwest = { version = "0.11", features = ["multipart", "json", "cookies"] }
 reqwest-middleware = "0.1"
 reqwest-retry = "0.1"
-rsa = "0.5"
+rsa = "0.6"
 sentry = "0.25"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 tar = "0.4"
 task-local-extensions = "0.1"
-tauri = { version = "1.0.0-rc.5", features = ["dialog"] }
+tauri = { version = "1.0.0-rc.8", features = ["dialog"] }
 tokio = { version = "1.17", features = ["rt", "sync", "time", "macros"] }
 tokio-stream = "0.1"
-uuid = { version = "0.8", features = ["v4", "v5"] }
-webbrowser = "0.6"
+uuid = { version = "1.0", features = ["v4", "v5"] }
+webbrowser = "0.7"
 
 [build-dependencies]
-tauri-build = { version = "1.0.0-rc.5", features = [] }
+tauri-build = { version = "1.0.0-rc.7", features = [] }
 
 [features]
 # by default Tauri runs in production mode
