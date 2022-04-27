@@ -28,7 +28,7 @@ use crate::future_queue::FutQueue;
 use crate::models::{
     Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic,
 };
-use crate::retained_promise::{promise_pair, RetainedPromise};
+use crate::shared_promise::{shared_promise_pair, SharedPromise};
 use crate::Result;
 
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
@@ -49,7 +49,7 @@ pub struct Archiver {
     client: ClientWithMiddleware,
     topic_id: usize,
     downloaded: Arc<Mutex<HashSet<String>>>,
-    downloaded_avatars: Arc<Mutex<HashMap<String, RetainedPromise<PathBuf>>>>,
+    downloaded_avatars: Arc<Mutex<HashMap<String, SharedPromise<PathBuf>>>>,
     to: PathBuf,
     fut_queue: Arc<FutQueue<BoxFuture<'static, Result<()>>>>,
     anonymous: bool,
@@ -333,16 +333,16 @@ impl Archiver {
     //
     // Returns new path of the avatar.
     async fn download_avatar(&self, from: String, mut to: PathBuf) -> Result<PathBuf> {
-        let (swear, promise) = promise_pair();
-        let avatar_fut = match self.downloaded_avatars.lock().unwrap().entry(from.clone()) {
-            Entry::Occupied(promise) => Some(promise.get().recv()),
+        let (swear, promise) = shared_promise_pair();
+        let promise = match self.downloaded_avatars.lock().unwrap().entry(from.clone()) {
+            Entry::Occupied(promise) => Some(promise.get().clone()),
             Entry::Vacant(e) => {
                 e.insert(promise);
                 None
             }
         };
-        if let Some(fut) = avatar_fut {
-            return Ok(fut.await);
+        if let Some(promise) = promise {
+            return Ok(promise.recv().await);
         }
 
         let client = self.client.clone();

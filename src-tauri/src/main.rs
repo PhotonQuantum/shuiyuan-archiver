@@ -29,7 +29,7 @@ mod future_queue;
 mod middleware;
 mod models;
 mod rate_limit;
-mod retained_promise;
+mod shared_promise;
 mod store;
 mod url_scheme;
 
