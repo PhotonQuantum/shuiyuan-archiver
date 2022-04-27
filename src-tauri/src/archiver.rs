@@ -1,4 +1,4 @@
-use std::collections::hash_map::DefaultHasher;
+use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::fs::File;
@@ -18,6 +18,7 @@ use handlebars::Handlebars;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use reqwest::header::CONTENT_TYPE;
 use reqwest_middleware::ClientWithMiddleware;
 use tauri::{Window, Wry};
 use tokio::task::spawn_blocking;
@@ -27,6 +28,7 @@ use crate::future_queue::FutQueue;
 use crate::models::{
     Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic,
 };
+use crate::retained_promise::{promise_pair, RetainedPromise};
 use crate::Result;
 
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
@@ -47,6 +49,7 @@ pub struct Archiver {
     client: ClientWithMiddleware,
     topic_id: usize,
     downloaded: Arc<Mutex<HashSet<String>>>,
+    downloaded_avatars: Arc<Mutex<HashMap<String, RetainedPromise<PathBuf>>>>,
     to: PathBuf,
     fut_queue: Arc<FutQueue<BoxFuture<'static, Result<()>>>>,
     anonymous: bool,
@@ -78,6 +81,7 @@ impl Archiver {
             client,
             topic_id,
             downloaded: Default::default(),
+            downloaded_avatars: Default::default(),
             to,
             fut_queue: Arc::new(FutQueue::new()),
             anonymous,
@@ -163,15 +167,20 @@ impl Archiver {
                 self.to.join("resources").join(format!("{}.png", r.emoji)),
             );
         });
-        let avatar_url = post.avatar_template.replace("{size}", "40");
-        let avatar_filename = format!(
-            "{}_{}",
-            calculate_hash(&avatar_url),
-            avatar_url.split('/').last().unwrap()
-        );
-        if !self.anonymous {
-            self.download_asset(avatar_url, self.to.join("resources").join(&avatar_filename));
-        }
+        let avatar = if !self.anonymous {
+            let avatar_url = post.avatar_template.replace("{size}", "40");
+            let avatar_filename = format!(
+                "{}_{}",
+                calculate_hash(&avatar_url),
+                avatar_url.split('/').last().unwrap()
+            );
+            Some(
+                self.download_avatar(avatar_url, self.to.join("resources").join(&avatar_filename))
+                    .await?,
+            )
+        } else {
+            None
+        };
         let cooked = self.prepare_cooked(cooked);
         let (name, username, avatar, cooked) = if self.anonymous {
             let mut cooked = cooked;
@@ -185,12 +194,7 @@ impl Archiver {
                 .clone();
             ("".to_string(), fake_name, None, cooked)
         } else {
-            (
-                post.name,
-                post.username,
-                Some(format!("resources/{}", avatar_filename)),
-                cooked,
-            )
+            (post.name, post.username, avatar, cooked)
         };
         Ok(Post {
             name,
@@ -324,6 +328,40 @@ impl Archiver {
         };
         let output = File::create(self.to.join(format!("{}.html", page)))?;
         Ok(HANDLEBARS.render_to_write("index", &params, output)?)
+    }
+    // Download an avatar.
+    //
+    // Returns new path of the avatar.
+    async fn download_avatar(&self, from: String, mut to: PathBuf) -> Result<PathBuf> {
+        let (swear, promise) = promise_pair();
+        let avatar_fut = match self.downloaded_avatars.lock().unwrap().entry(from.clone()) {
+            Entry::Occupied(promise) => Some(promise.get().recv()),
+            Entry::Vacant(e) => {
+                e.insert(promise);
+                None
+            }
+        };
+        if let Some(fut) = avatar_fut {
+            return Ok(fut.await);
+        }
+
+        let client = self.client.clone();
+        let resp = client
+            .get(format!("https://shuiyuan.sjtu.edu.cn{}", from))
+            .send()
+            .await?;
+        let content_type = resp.headers().get(CONTENT_TYPE).unwrap();
+        if content_type.to_str().unwrap().contains("svg") {
+            to.set_extension("svg");
+        }
+        let bytes = resp.bytes().await?;
+
+        let mut file = File::create(&to)?;
+
+        spawn_blocking(move || file.write_all(&bytes)).await??;
+
+        swear.fulfill(to.clone());
+        Ok(to)
     }
     fn download_asset(&self, from: String, to: PathBuf) {
         if !self.downloaded.lock().unwrap().insert(from.clone()) {

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -52,7 +53,7 @@ pub struct Post {
     pub likes: usize,
     pub reply_to: Option<usize>,
     pub emojis: HashMap<String, usize>,
-    pub avatar: Option<String>,
+    pub avatar: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]

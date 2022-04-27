@@ -29,6 +29,7 @@ mod future_queue;
 mod middleware;
 mod models;
 mod rate_limit;
+mod retained_promise;
 mod store;
 mod url_scheme;
 
@@ -41,7 +42,12 @@ fn open_browser(key: tauri::State<RsaPrivateKey>) {
         ("client_id", &generate_client_id()),
         ("scopes", "session_info,read"),
         ("nonce", "1"),
-        ("public_key", &key.to_public_key().to_pkcs1_pem(Default::default()).unwrap()),
+        (
+            "public_key",
+            &key.to_public_key()
+                .to_pkcs1_pem(Default::default())
+                .unwrap(),
+        ),
     ];
     let parsed_query = serde_urlencoded::to_string(query).expect("failed to encode query");
     let url = format!(
