@@ -1,6 +1,8 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -56,6 +58,12 @@ fn extract_resources(to: impl AsRef<Path>) -> Result<()> {
     let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(Cursor::new(RESOURCES)));
     archive.unpack(to)?;
     Ok(())
+}
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 impl Archiver {
@@ -156,12 +164,13 @@ impl Archiver {
             );
         });
         let avatar_url = post.avatar_template.replace("{size}", "40");
-        let avatar_filename = avatar_url.split('/').last().unwrap();
+        let avatar_filename = format!(
+            "{}_{}",
+            calculate_hash(&avatar_url),
+            avatar_url.split('/').last().unwrap()
+        );
         if !self.anonymous {
-            self.download_asset(
-                avatar_url.clone(),
-                self.to.join("resources").join(avatar_filename),
-            );
+            self.download_asset(avatar_url, self.to.join("resources").join(&avatar_filename));
         }
         let cooked = self.prepare_cooked(cooked);
         let (name, username, avatar, cooked) = if self.anonymous {
