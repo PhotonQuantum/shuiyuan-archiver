@@ -36,6 +36,8 @@ jobs:
           profile: minimal
           default: true
       - uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: src-tauri
       - name: Install Dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-18.04'
         run: |
