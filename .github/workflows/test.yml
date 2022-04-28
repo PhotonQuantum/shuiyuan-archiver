@@ -31,7 +31,7 @@ jobs:
       - name: Check Code Format 🔧
         run: cd src-tauri && cargo fmt -- --check
       - name: Run Clippy Lints 🔨
-        run: cd src-tauri && cargo clippy --all-targets --all-features --tests
+        run: mkdir dist && cd src-tauri && cargo clippy --all-targets --all-features --tests
 
   test:
     name: Test
@@ -53,4 +53,4 @@ jobs:
         with:
           working-directory: src-tauri
       - name: Running Tests 🚀
-        run: cd src-tauri && cargo test --workspace
+        run: mkdir dist && cd src-tauri && cargo test --workspace
