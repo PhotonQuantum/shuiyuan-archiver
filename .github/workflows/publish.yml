@@ -6,6 +6,8 @@ on:
 permissions:
   contents: write
 
+name: Publish
+
 jobs:
   publish:
     name: Publish
