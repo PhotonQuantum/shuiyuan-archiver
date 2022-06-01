@@ -28,6 +28,7 @@ use crate::future_queue::FutQueue;
 use crate::models::{
     Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic,
 };
+use crate::preloaded_store::PreloadedStore;
 use crate::shared_promise::{shared_promise_pair, SharedPromise};
 use crate::Result;
 
@@ -90,10 +91,12 @@ impl Archiver {
         }
     }
     pub async fn download(self) -> Result<()> {
+        let preloaded_store = Arc::new(PreloadedStore::from_client(&self.client).await?);
+
         fs::create_dir_all(&self.to)?;
         extract_resources(&self.to.join("resources/"))?;
 
-        self.topic(self.topic_id).await?;
+        self.topic(self.topic_id, preloaded_store).await?;
         self.fut_queue.finish();
         let mut stream = self.fut_queue.take_stream();
         let mut count = 0;
@@ -132,7 +135,11 @@ impl Archiver {
         }
         Ok(res.into())
     }
-    async fn process_post(&self, post: RespPost) -> Result<Post> {
+    async fn process_post(
+        &self,
+        post: RespPost,
+        preloaded_store: Arc<PreloadedStore>,
+    ) -> Result<Post> {
         static RE_AVATAR: Lazy<Regex> =
             Lazy::new(|| Regex::new(r#"<img .* class="avatar">"#).unwrap());
         let mut cooked = if post.cooked_hidden {
@@ -161,12 +168,35 @@ impl Archiver {
             .filter(|a| a.id == 2)
             .find_map(|a| a.count)
             .unwrap_or_default();
-        post.retorts.iter().for_each(|r| {
-            self.download_asset(
-                format!("/images/emoji/google/{}.png", r.emoji),
-                self.to.join("resources").join(format!("{}.png", r.emoji)),
-            );
-        });
+        let emojis = post
+            .retorts
+            .into_iter()
+            .map(|r| {
+                (
+                    if let Some(emoji_path) = preloaded_store.custom_emoji(&r.emoji) {
+                        let remote_filename = PathBuf::from(emoji_path)
+                            .file_name()
+                            .unwrap()
+                            .to_os_string()
+                            .into_string()
+                            .unwrap();
+                        self.download_asset(
+                            emoji_path.to_string(),
+                            self.to.join("resources").join(&remote_filename),
+                        );
+                        remote_filename
+                    } else {
+                        let local_filename = format!("{}.png", r.emoji);
+                        self.download_asset(
+                            format!("/images/emoji/google/{}.png", r.emoji),
+                            self.to.join("resources").join(&local_filename),
+                        );
+                        local_filename
+                    },
+                    r.usernames.len(),
+                )
+            })
+            .collect();
         let avatar = if !self.anonymous {
             let avatar_url = post.avatar_template.replace("{size}", "40");
             let avatar_filename = format!(
@@ -209,11 +239,7 @@ impl Archiver {
             content: cooked,
             likes,
             reply_to: post.reply_to_post_number,
-            emojis: post
-                .retorts
-                .into_iter()
-                .map(|r| (r.emoji, r.usernames.len()))
-                .collect(),
+            emojis,
             avatar,
         })
     }
@@ -238,7 +264,7 @@ impl Archiver {
         content
     }
     //noinspection RsTypeCheck
-    async fn topic(&self, topic_id: usize) -> Result<()> {
+    async fn topic(&self, topic_id: usize, preloaded_store: Arc<PreloadedStore>) -> Result<()> {
         let resp: RespTopic = self
             .client
             .get(format!("https://shuiyuan.sjtu.edu.cn/t/{}.json", topic_id))
@@ -267,12 +293,17 @@ impl Archiver {
             .enumerate()
             .group_by(|(i, _)| i / page_size + 1) // page
             .into_iter()
-            .map(|(page, group)| {
+            .map(move |(page, group)| {
+                let preloaded_store = preloaded_store.clone();
+
                 let post_ids = group.map(|(_, id)| id).copied().collect();
                 let this = self.clone();
                 let base_topic = base_topic.clone();
                 let last_page = page == pages;
-                async move { this.posts(base_topic, page, post_ids, last_page).await }
+                async move {
+                    this.posts(base_topic, page, post_ids, last_page, preloaded_store)
+                        .await
+                }
             })
             .collect();
         let mut count = 0;
@@ -294,6 +325,7 @@ impl Archiver {
         /* base-1 */ page: usize,
         post_ids: Vec<usize>,
         last_page: bool,
+        preloaded_store: Arc<PreloadedStore>,
     ) -> Result<()> {
         let resp: RespPosts = self
             .client
@@ -315,7 +347,7 @@ impl Archiver {
             resp.post_stream
                 .posts
                 .into_iter()
-                .map(|p| self.process_post(p)),
+                .map(|p| self.process_post(p, preloaded_store.clone())),
         )
         .await
         .into_iter()

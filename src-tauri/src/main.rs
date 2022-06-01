@@ -28,6 +28,7 @@ mod error;
 mod future_queue;
 mod middleware;
 mod models;
+mod preloaded_store;
 mod rate_limit;
 mod shared_promise;
 mod store;
