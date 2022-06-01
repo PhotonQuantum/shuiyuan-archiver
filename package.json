@@ -7,6 +7,7 @@
     "build": "parcel build --no-source-maps"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "1.0.0-rc.13",
     "@tauri-apps/tauricon": "github:tauri-apps/tauricon",
     "@types/react": "^18.0.5",
     "@types/react-dom": "^18.0.1",
