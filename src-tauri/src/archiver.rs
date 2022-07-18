@@ -350,17 +350,26 @@ impl Archiver {
                 .into_iter()
                 .map(|p| self.process_post(p, preloaded_store.clone())),
         )
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>>>()?;
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
         let params = Topic {
             posts: processed,
             page: Some(page),
-            prev_page: if page > 1 { Some(page - 1) } else { None },
+            prev_page: match page {
+                1 => None,
+                2 => Some(String::from("index")),
+                _ => Some(format!("{}", page - 1))
+            },
             next_page: if last_page { None } else { Some(page + 1) },
             ..topic
         };
-        let output = File::create(self.to.join(format!("{}.html", page)))?;
+        let filename = if page == 1 {
+            String::from("index.html")
+        } else {
+            format!("{}.html", page)
+        };
+        let output = File::create(self.to.join(filename))?;
         Ok(HANDLEBARS.render_to_write("index", &params, output)?)
     }
     // Download an avatar.
