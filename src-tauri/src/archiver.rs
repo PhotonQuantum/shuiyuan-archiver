@@ -15,6 +15,7 @@ use futures::future::{BoxFuture, join_all};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use handlebars::Handlebars;
+use html2text::render::text_renderer::TrivialDecorator;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -272,9 +273,20 @@ impl Archiver {
             .await?
             .json()
             .await?;
+        let description = resp
+            .post_stream
+            .posts
+            .first()
+            .map(|post| &*post.cooked)
+            .map(|s| {
+                html2text::parse(s.as_bytes())
+                    .render(40, TrivialDecorator::new())
+                    .into_string()
+            });
         let base_topic = Topic {
             id: topic_id,
             title: resp.title,
+            description,
             categories: self.categories(resp.category_id).await?,
             tags: resp.tags,
             posts: vec![],

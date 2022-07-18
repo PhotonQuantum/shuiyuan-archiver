@@ -93,6 +93,7 @@ pub struct Actions {
 pub struct Topic {
     pub id: usize,
     pub title: String,
+    pub description: Option<String>,
     pub categories: Vec<Category>,
     pub tags: Vec<String>,
     pub posts: Vec<Post>,
