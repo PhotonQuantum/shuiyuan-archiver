@@ -98,6 +98,6 @@ pub struct Topic {
     pub tags: Vec<String>,
     pub posts: Vec<Post>,
     pub page: Option<usize>,
-    pub prev_page: Option<String>,  // can be "index"
+    pub prev_page: Option<String>, // can be "index"
     pub next_page: Option<usize>,
 }
