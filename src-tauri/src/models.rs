@@ -96,6 +96,7 @@ pub struct Topic {
     pub categories: Vec<Category>,
     pub tags: Vec<String>,
     pub posts: Vec<Post>,
+    pub page: Option<usize>,
     pub prev_page: Option<usize>,
     pub next_page: Option<usize>,
 }

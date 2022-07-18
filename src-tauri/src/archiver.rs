@@ -1,5 +1,5 @@
-use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::hash_map::{DefaultHasher, Entry};
 use std::fs;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
@@ -9,9 +9,9 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use chrono::Local;
-use fake::faker::name::en::Name;
 use fake::Fake;
-use futures::future::{join_all, BoxFuture};
+use fake::faker::name::en::Name;
+use futures::future::{BoxFuture, join_all};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use handlebars::Handlebars;
@@ -29,8 +29,8 @@ use crate::models::{
     Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic,
 };
 use crate::preloaded_store::PreloadedStore;
-use crate::shared_promise::{shared_promise_pair, SharedPromise};
 use crate::Result;
+use crate::shared_promise::{shared_promise_pair, SharedPromise};
 
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
 const TEMPLATE: &str = include_str!("../templates/index.hbs");
@@ -278,6 +278,7 @@ impl Archiver {
             categories: self.categories(resp.category_id).await?,
             tags: resp.tags,
             posts: vec![],
+            page: None,
             prev_page: None,
             next_page: None,
         };
@@ -354,6 +355,7 @@ impl Archiver {
         .collect::<Result<Vec<_>>>()?;
         let params = Topic {
             posts: processed,
+            page: Some(page),
             prev_page: if page > 1 { Some(page - 1) } else { None },
             next_page: if last_page { None } else { Some(page + 1) },
             ..topic
