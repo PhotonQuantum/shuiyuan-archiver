@@ -14,7 +14,7 @@ use chrono::Local;
 use reqwest::Client;
 use rsa::pkcs1::EncodeRsaPublicKey;
 use rsa::RsaPrivateKey;
-use tauri::{AboutMetadata, Menu, MenuItem, Submenu, Wry};
+use tauri::Wry;
 use uuid::Uuid;
 
 use crate::archiver::Archiver;
@@ -167,24 +167,7 @@ fn main() {
     let key = RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
     let saved_folder: Mutex<Option<PathBuf>> = Mutex::new(None);
 
-    let builder = if cfg!(target_os = "macos") {
-        let app_menu = Menu::new()
-            .add_native_item(MenuItem::About(
-                String::from("水源存档工具"),
-                AboutMetadata::new(),
-            ))
-            .add_native_item(MenuItem::Copy)
-            .add_native_item(MenuItem::Cut)
-            .add_native_item(MenuItem::Paste)
-            .add_native_item(MenuItem::SelectAll)
-            .add_native_item(MenuItem::Undo)
-            .add_native_item(MenuItem::Redo);
-        let menu = Menu::new().add_submenu(Submenu::new("File", app_menu));
-        tauri::Builder::default().menu(menu)
-    } else {
-        tauri::Builder::default()
-    };
-    builder
+    tauri::Builder::default()
         .manage(store)
         .manage(key)
         .manage(saved_folder)
