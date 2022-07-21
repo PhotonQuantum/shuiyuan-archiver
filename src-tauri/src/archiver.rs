@@ -317,11 +317,7 @@ impl Archiver {
             prev_page: None,
             next_page: None,
         };
-        let filename = sanitize(format!(
-            "水源_{}_{}",
-            &base_topic.title,
-            get_current_time()
-        ));
+        let filename = sanitize(format!("水源_{}_{}", &base_topic.title, get_current_time()));
         *self.to.lock().unwrap() = Some(self.to_base.join(filename));
         fs::create_dir_all(self.to.lock().unwrap().as_ref().unwrap().join("resources"))?;
 
