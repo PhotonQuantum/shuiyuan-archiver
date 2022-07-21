@@ -37,10 +37,10 @@ impl PreloadedStore {
             .value()
             .attr("data-preloaded")
             .wrap_err("Missing data-preloaded attribute.")?;
-        Ok(serde_json::from_str(&preloaded)?)
+        Ok(serde_json::from_str(preloaded)?)
     }
     pub fn custom_emoji(&self, name: &str) -> Option<&str> {
-        self.custom_emoji.get(name).map(|s| s.as_str())
+        self.custom_emoji.get(name).map(std::string::String::as_str)
     }
 }
 

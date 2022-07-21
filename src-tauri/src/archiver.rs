@@ -1,3 +1,4 @@
+//! Well this file is really a mess. Good luck if you try to modify it.
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
@@ -21,6 +22,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::header::CONTENT_TYPE;
 use reqwest_middleware::ClientWithMiddleware;
+use sanitize_filename::sanitize;
 use tauri::{Window, Wry};
 use tokio::task::spawn_blocking;
 
@@ -31,7 +33,7 @@ use crate::models::{
 };
 use crate::preloaded_store::PreloadedStore;
 use crate::shared_promise::{shared_promise_pair, SharedPromise};
-use crate::Result;
+use crate::{get_current_time, Result};
 
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
 const TEMPLATE: &str = include_str!("../templates/index.hbs");
@@ -52,7 +54,10 @@ pub struct Archiver {
     topic_id: usize,
     downloaded: Arc<Mutex<HashSet<String>>>,
     downloaded_avatars: Arc<Mutex<HashMap<String, SharedPromise<PathBuf>>>>,
-    to: PathBuf,
+    to_base: PathBuf,
+    // !!! This field will be initialized in `Archiver::topic`.
+    // Well I admit this field is shit but I'm not going to change it anytime soon cuz I don't have much time.
+    to: Arc<Mutex<Option<PathBuf>>>,
     fut_queue: Arc<FutQueue<BoxFuture<'static, Result<()>>>>,
     anonymous: bool,
     fake_name_project: Arc<Mutex<HashMap<String, String>>>,
@@ -75,7 +80,7 @@ impl Archiver {
     pub fn new(
         client: ClientWithMiddleware,
         topic_id: usize,
-        to: PathBuf,
+        to_base: PathBuf,
         anonymous: bool,
         window: Window<Wry>,
     ) -> Self {
@@ -84,7 +89,8 @@ impl Archiver {
             topic_id,
             downloaded: Default::default(),
             downloaded_avatars: Default::default(),
-            to,
+            to_base,
+            to: Arc::new(Mutex::new(None)),
             fut_queue: Arc::new(FutQueue::new()),
             anonymous,
             fake_name_project: Arc::new(Default::default()),
@@ -94,10 +100,10 @@ impl Archiver {
     pub async fn download(self) -> Result<()> {
         let preloaded_store = Arc::new(PreloadedStore::from_client(&self.client).await?);
 
-        fs::create_dir_all(&self.to)?;
-        extract_resources(&self.to.join("resources/"))?;
-
         self.topic(self.topic_id, preloaded_store).await?;
+
+        extract_resources(self.to.lock().unwrap().as_ref().unwrap().join("resources/"))?;
+
         self.fut_queue.finish();
         let mut stream = self.fut_queue.take_stream();
         let mut count = 0;
@@ -183,14 +189,26 @@ impl Archiver {
                             .unwrap();
                         self.download_asset(
                             emoji_path.to_string(),
-                            self.to.join("resources").join(&remote_filename),
+                            self.to
+                                .lock()
+                                .unwrap()
+                                .as_ref()
+                                .unwrap()
+                                .join("resources")
+                                .join(&remote_filename),
                         );
                         remote_filename
                     } else {
                         let local_filename = format!("{}.png", r.emoji);
                         self.download_asset(
                             format!("/images/emoji/google/{}.png", r.emoji),
-                            self.to.join("resources").join(&local_filename),
+                            self.to
+                                .lock()
+                                .unwrap()
+                                .as_ref()
+                                .unwrap()
+                                .join("resources")
+                                .join(&local_filename),
                         );
                         local_filename
                     },
@@ -205,10 +223,15 @@ impl Archiver {
                 calculate_hash(&avatar_url),
                 avatar_url.split('/').last().unwrap()
             );
-            Some(
-                self.download_avatar(avatar_url, self.to.join("resources").join(&avatar_filename))
-                    .await?,
-            )
+            let target_path = self
+                .to
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .join("resources")
+                .join(&avatar_filename);
+            Some(self.download_avatar(avatar_url, target_path).await?)
         } else {
             None
         };
@@ -260,7 +283,7 @@ impl Archiver {
         }
 
         for (url, name) in asset_urls {
-            self.download_asset(url, self.to.join(name));
+            self.download_asset(url, self.to.lock().unwrap().as_ref().unwrap().join(name));
         }
         content
     }
@@ -294,6 +317,13 @@ impl Archiver {
             prev_page: None,
             next_page: None,
         };
+        let filename = sanitize(format!(
+            "水源_{}_{}",
+            &base_topic.title,
+            get_current_time()
+        ));
+        *self.to.lock().unwrap() = Some(self.to_base.join(filename));
+        fs::create_dir_all(self.to.lock().unwrap().as_ref().unwrap().join("resources"))?;
 
         let posts_count = resp.posts_count;
         let page_size = resp.post_stream.posts.len();
@@ -381,7 +411,7 @@ impl Archiver {
         } else {
             format!("{}.html", page)
         };
-        let output = File::create(self.to.join(filename))?;
+        let output = File::create(self.to.lock().unwrap().as_ref().unwrap().join(filename))?;
         Ok(HANDLEBARS.render_to_write("index", &params, output)?)
     }
     // Download an avatar.

@@ -5,7 +5,7 @@
 #![allow(clippy::module_name_repetitions)]
 
 use std::error::Error as StdError;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -115,7 +115,7 @@ async fn archive(
     let watcher = RateLimitWatcher::new(window.clone());
     match create_client_with_token(&token, watcher).await {
         Ok(client) => {
-            let path = find_available_path(&*PathBuf::from(save_at), topic as i32);
+            let path = PathBuf::from(save_at);
             *saved_folder.lock().unwrap() = Some(path.clone());
             let archiver = Archiver::new(client, topic, path, mask_user, window);
             if let Err(e) = archiver.download().await {
@@ -186,13 +186,8 @@ fn main() {
         .expect("error while running tauri application");
 }
 
-fn find_available_path(path: &Path, topic: i32) -> PathBuf {
-    let new_path = path.join(format!("水源存档_{}_{}", topic, get_current_time()));
-    new_path
-}
-
 fn get_current_time() -> String {
-    Local::now().format("%Y-%m-%d_%H-%M-%S").to_string()
+    Local::now().format("%Y-%m-%d_%H:%M:%S").to_string()
 }
 
 fn generate_client_id() -> String {
