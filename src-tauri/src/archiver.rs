@@ -223,15 +223,7 @@ impl Archiver {
                 calculate_hash(&avatar_url),
                 avatar_url.split('/').last().unwrap()
             );
-            let target_path = self
-                .to
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .join("resources")
-                .join(&avatar_filename);
-            Some(self.download_avatar(avatar_url, target_path).await?)
+            Some(self.download_avatar(avatar_url, &avatar_filename).await?)
         } else {
             None
         };
@@ -410,10 +402,18 @@ impl Archiver {
         let output = File::create(self.to.lock().unwrap().as_ref().unwrap().join(filename))?;
         Ok(HANDLEBARS.render_to_write("index", &params, output)?)
     }
-    // Download an avatar.
-    //
-    // Returns new path of the avatar.
-    async fn download_avatar(&self, from: String, mut to: PathBuf) -> Result<PathBuf> {
+    /// Download an avatar.
+    ///
+    /// Returns new path of the avatar.
+    async fn download_avatar(&self, from: String, filename: &str) -> Result<PathBuf> {
+        let mut to = self
+            .to
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .join("resources")
+            .join(filename);
         let (swear, promise) = shared_promise_pair();
         let promise = match self.downloaded_avatars.lock().unwrap().entry(from.clone()) {
             Entry::Occupied(promise) => Some(promise.get().clone()),
@@ -442,7 +442,7 @@ impl Archiver {
         spawn_blocking(move || file.write_all(&bytes)).await??;
 
         swear.fulfill(to.clone());
-        Ok(to)
+        Ok(PathBuf::from(format!("resources/{}", filename)))
     }
     fn download_asset(&self, from: String, to: PathBuf) {
         if !self.downloaded.lock().unwrap().insert(from.clone()) {
