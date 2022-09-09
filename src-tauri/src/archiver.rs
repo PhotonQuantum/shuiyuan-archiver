@@ -441,8 +441,9 @@ impl Archiver {
 
         spawn_blocking(move || file.write_all(&bytes)).await??;
 
-        swear.fulfill(to.clone());
-        Ok(PathBuf::from(format!("resources/{}", filename)))
+        let return_path = PathBuf::from(format!("resources/{}", filename));
+        swear.fulfill(return_path.clone());
+        Ok(return_path)
     }
     fn download_asset(&self, from: String, to: PathBuf) {
         if !self.downloaded.lock().unwrap().insert(from.clone()) {
