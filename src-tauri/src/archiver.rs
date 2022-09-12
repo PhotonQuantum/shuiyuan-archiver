@@ -406,6 +406,7 @@ impl Archiver {
     ///
     /// Returns new path of the avatar.
     async fn download_avatar(&self, from: String, filename: &str) -> Result<PathBuf> {
+        let mut filename = PathBuf::from(filename);
         let mut to = self
             .to
             .lock()
@@ -413,7 +414,7 @@ impl Archiver {
             .as_ref()
             .unwrap()
             .join("resources")
-            .join(filename);
+            .join(&filename);
         let (swear, promise) = shared_promise_pair();
         let promise = match self.downloaded_avatars.lock().unwrap().entry(from.clone()) {
             Entry::Occupied(promise) => Some(promise.get().clone()),
@@ -434,6 +435,7 @@ impl Archiver {
         let content_type = resp.headers().get(CONTENT_TYPE).unwrap();
         if content_type.to_str().unwrap().contains("svg") {
             to.set_extension("svg");
+            filename.set_extension("svg");
         }
         let bytes = resp.bytes().await?;
 
@@ -441,7 +443,7 @@ impl Archiver {
 
         spawn_blocking(move || file.write_all(&bytes)).await??;
 
-        let return_path = PathBuf::from(format!("resources/{}", filename));
+        let return_path = PathBuf::from("resources").join(filename);
         swear.fulfill(return_path.clone());
         Ok(return_path)
     }
