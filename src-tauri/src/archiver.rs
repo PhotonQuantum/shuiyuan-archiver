@@ -1,6 +1,7 @@
 //! Well this file is really a mess. Good luck if you try to modify it.
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::Display;
 use std::fs;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
@@ -74,6 +75,13 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
     s.finish()
+}
+
+// For toned emoji, see
+// https://github.com/discourse/discourse/blob/c85e3e80838d75d8eec132267e2903d729f12aa4/app/models/emoji.rb#L104
+fn normalize_emoji(emoji: &str) -> impl Display + '_ {
+    static EMOJI_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(.+):t([1-6])").unwrap());
+    EMOJI_RE.replace_all(emoji.trim_matches(':'), "$1/$2")
 }
 
 impl Archiver {
@@ -181,6 +189,7 @@ impl Archiver {
             .map(|r| {
                 (
                     if let Some(emoji_path) = preloaded_store.custom_emoji(&r.emoji) {
+                        // custom emoji
                         let remote_filename = PathBuf::from(emoji_path)
                             .file_name()
                             .unwrap()
@@ -199,9 +208,11 @@ impl Archiver {
                         );
                         remote_filename
                     } else {
+                        // standard emoji
                         let local_filename = format!("{}.png", r.emoji);
+                        let normalized_name = normalize_emoji(&r.emoji);
                         self.download_asset(
-                            format!("/images/emoji/google/{}.png", r.emoji),
+                            format!("/images/emoji/google/{}.png", normalized_name),
                             self.to
                                 .lock()
                                 .unwrap()
