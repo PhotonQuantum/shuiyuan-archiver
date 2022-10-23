@@ -2,7 +2,7 @@
 name = "shuiyuan-archiver"
 description = "一个将上海交通大学水源社区的文章存档的工具"
 authors = ["LightQuantum <self@lightquantum.me>"]
-version = "0.3.7"
+version = "0.3.8"
 edition = "2021"
 build = "build.rs"
 repository = "https://github.com/PhotonQuantum/shuiyuan-archiver"
