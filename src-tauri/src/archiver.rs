@@ -485,19 +485,25 @@ impl Archiver {
 
 #[allow(clippy::to_string_in_format_args)]
 fn extract_asset_url(content: &str) -> Vec<String> {
-    static IMAGE_RE: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(
-            r#"https?://shuiyuan.sjtu.edu.cn([^)'",]+.(?:jpg|jpeg|gif|png|JPG|JPEG|GIF|PNG))"#,
-        )
+    const IMAGE_SUFFIX: &str = "jpg|jpeg|gif|png|JPG|JPEG|GIF|PNG";
+    const VIDEO_SUFFIX: &str = "mp4|mov|avi|MP4|MOV|AVI";
+    static FULL_URL_RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(&format!(
+            r#"https?://shuiyuan.sjtu.edu.cn([^)'",]+.(?:{IMAGE_SUFFIX}|{VIDEO_SUFFIX}))"#
+        ))
         .unwrap()
     });
-    static VIDEO_RE: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r#"/uploads[^)'",\\]+.(?:mp4|MP4|mov|MOV|avi|AVI)"#).unwrap());
-    IMAGE_RE
+    static UPLOAD_URL_RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(&format!(
+            r#"/uploads[^)'",\\]+.(?:{IMAGE_SUFFIX}|{VIDEO_SUFFIX})"#
+        ))
+        .unwrap()
+    });
+    FULL_URL_RE
         .captures_iter(content)
         .map(|cap| cap[1].to_string())
         .chain(
-            VIDEO_RE
+            UPLOAD_URL_RE
                 .captures_iter(content)
                 .map(|cap| cap[0].to_string()),
         )
