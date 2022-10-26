@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Local, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -108,6 +108,7 @@ pub struct Params {
     #[serde(flatten)]
     pub topic: Topic,
     pub app_version: String,
+    pub year: i32,
 }
 
 impl From<Topic> for Params {
@@ -115,6 +116,7 @@ impl From<Topic> for Params {
         Self {
             topic: t,
             app_version: env!("CARGO_PKG_VERSION").to_string(),
+            year: Local::now().year(),
         }
     }
 }
