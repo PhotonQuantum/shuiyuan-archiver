@@ -1,11 +1,22 @@
+<!-- Archived from: https://shuiyuan.sjtu.edu.cn/t/topic/{{id}} -->
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <meta
+            data-topic-id="{{id}}"
+            data-title="{{escape title}}"
+            data-page="{{page}}"
+            data-total-pages="{{total_pages}}"
+            data-categories="{{#each categories}}{{escape this.name}}{{#unless @last}}, {{/unless}}{{/each}}"
+            data-tags="{{#each tags}}{{escape this}}{{#unless @last}}, {{/unless}}{{/each}}"
+            data-archiver-name="shuiyuan-archiver"
+            data-archiver-version="{{app_version}}"
+    />
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     {{#if description}}
-        <meta name="description" content="{{description}}">
+        <meta name="description" content="{{escape description}}">
     {{/if}}
-    <title>{{title}} | 第 {{page}} 页</title>
+    <title>{{escape title}} | 第 {{page}} 页</title>
     <link href="resources/desktop_a6ebc8d83f637bb00f4f3fe2bed708de5b2f46cb.css" media="all"
           rel="stylesheet" data-target="desktop">
     <link href="resources/desktop_theme_18_6044d2798548d883edb7b504e9678e59bef1ea37.css"
@@ -45,7 +56,7 @@
 <div id="main-outlet" class="wrap">
     <div id="topic-title">
         <h1>
-            <a href="index.html">{{title}}</a>
+            <a href="index.html">{{escape title}}</a>
         </h1>
 
         <div class="topic-category" itemscope="" itemtype="http://schema.org/BreadcrumbList">
@@ -54,7 +65,7 @@
                   <a class="badge-wrapper bullet" itemprop="item">
                     <span class="badge-category-bg" style="background-color: #{{this.color}}"></span>
                     <span class="badge-category clear-badge">
-                      <span class="category-name" itemprop="name">{{this.name}}</span>
+                      <span class="category-name" itemprop="name">{{escape this.name}}</span>
                     </span>
                   </a>
                 </span>
@@ -64,7 +75,7 @@
         <div class="topic-category">
             <div class="discourse-tags list-tags">
                 {{#each tags}}
-                    <a class="discourse-tag" rel="tag">{{this}}</a>
+                    <a class="discourse-tag" rel="tag">{{escape this}}</a>
                 {{/each}}
             </div>
         </div>
@@ -78,7 +89,7 @@
                 {{/if}}
                 <span class="creator" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
                 <a itemprop="url">
-                    <span itemprop="name">{{this.username}}</span>
+                    <span itemprop="name">{{escape this.username}}</span>
                 </a>
                     {{#if this.name}}
                         ({{this.name}})

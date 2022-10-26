@@ -98,6 +98,23 @@ pub struct Topic {
     pub tags: Vec<String>,
     pub posts: Vec<Post>,
     pub page: Option<usize>,
+    pub total_pages: usize,
     pub prev_page: Option<String>, // can be "index"
     pub next_page: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Params {
+    #[serde(flatten)]
+    pub topic: Topic,
+    pub app_version: String,
+}
+
+impl From<Topic> for Params {
+    fn from(t: Topic) -> Self {
+        Self {
+            topic: t,
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+        }
+    }
 }

@@ -16,7 +16,7 @@ use fake::Fake;
 use futures::future::{join_all, BoxFuture};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use handlebars::Handlebars;
+use handlebars::{handlebars_helper, html_escape, no_escape, Handlebars};
 use html2text::render::text_renderer::TrivialDecorator;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -30,7 +30,7 @@ use tokio::task::spawn_blocking;
 use crate::error::ErrorExt;
 use crate::future_queue::FutQueue;
 use crate::models::{
-    Category, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic,
+    Category, Params, Post, RespCategory, RespCooked, RespPost, RespPosts, RespTopic, Topic,
 };
 use crate::preloaded_store::PreloadedStore;
 use crate::shared_promise::{shared_promise_pair, SharedPromise};
@@ -39,10 +39,13 @@ use crate::{get_current_time, Result};
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
 const TEMPLATE: &str = include_str!("../templates/index.hbs");
 
+handlebars_helper!(escape: |x: String| html_escape(&x));
+
 pub static HANDLEBARS: Lazy<Handlebars<'_>> = Lazy::new(|| {
     let mut handlebars = Handlebars::new();
-    handlebars.register_escape_fn(ToString::to_string);
+    handlebars.register_escape_fn(no_escape);
     handlebars.set_strict_mode(true);
+    handlebars.register_helper("escape", Box::new(escape));
     handlebars
         .register_template_string("index", TEMPLATE)
         .unwrap();
@@ -306,9 +309,13 @@ impl Archiver {
             .map(|post| &*post.cooked)
             .map(|s| {
                 html2text::parse(s.as_bytes())
-                    .render(40, TrivialDecorator::new())
+                    .render(120, TrivialDecorator::new())
                     .into_string()
             });
+        let posts_count = resp.posts_count;
+        let page_size = resp.post_stream.posts.len();
+        let pages = (posts_count as f64 / page_size as f64).ceil() as usize;
+
         let base_topic = Topic {
             id: topic_id,
             title: resp.title,
@@ -317,6 +324,7 @@ impl Archiver {
             tags: resp.tags,
             posts: vec![],
             page: None,
+            total_pages: pages,
             prev_page: None,
             next_page: None,
         };
@@ -324,9 +332,6 @@ impl Archiver {
         *self.to.lock().unwrap() = Some(self.to_base.join(filename));
         fs::create_dir_all(self.to.lock().unwrap().as_ref().unwrap().join("resources"))?;
 
-        let posts_count = resp.posts_count;
-        let page_size = resp.post_stream.posts.len();
-        let pages = (posts_count as f64 / page_size as f64).ceil() as usize;
         let mut futs: FuturesUnordered<_> = resp
             .post_stream
             .stream
@@ -394,7 +399,7 @@ impl Archiver {
         .await
         .into_iter()
         .collect::<Result<Vec<_>>>()?;
-        let params = Topic {
+        let topic = Topic {
             posts: processed,
             page: Some(page),
             prev_page: match page {
@@ -405,6 +410,7 @@ impl Archiver {
             next_page: if last_page { None } else { Some(page + 1) },
             ..topic
         };
+        let params = Params::from(topic);
         let filename = if page == 1 {
             String::from("index.html")
         } else {
