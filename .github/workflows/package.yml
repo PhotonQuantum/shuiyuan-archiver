@@ -17,27 +17,20 @@ jobs:
         platform: [ macos-latest, ubuntu-18.04, windows-latest ]
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup Node
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v3
         with:
           node-version: 16
       - name: Setup Cargo Toolchain (Mac) 🛎️
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         if: matrix.platform == 'macos-latest'
         with:
-          toolchain: stable
-          target: aarch64-apple-darwin
-          profile: minimal
-          default: true
+          targets: aarch64-apple-darwin
       - name: Setup Cargo Toolchain 🛎️
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         if: matrix.platform != 'macos-latest'
-        with:
-          toolchain: stable
-          profile: minimal
-          default: true
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
         with:
           working-directory: src-tauri
       - name: Install Dependencies (Ubuntu only)
@@ -46,18 +39,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf
       - name: Cache Pnpm Modules
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/.pnpm-store
           key: ${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-
-      - uses: pnpm/action-setup@v2.1.0
+      - uses: pnpm/action-setup@v2
         name: Install App Dependencies
         with:
           version: latest
           run_install: true
-      - uses: PhotonQuantum/tauri-action@dev
+      - uses: tauri-apps/tauri-action@dev
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
