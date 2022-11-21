@@ -6,17 +6,20 @@
     "start": "parcel src/index.html",
     "build": "parcel build --no-source-maps"
   },
+  "alias": {
+    "process": false
+  },
   "devDependencies": {
-    "@tauri-apps/cli": "1.1.1",
+    "@tauri-apps/cli": "1.2.0",
     "@tauri-apps/tauricon": "github:tauri-apps/tauricon",
-    "@types/react": "^18.0.21",
-    "@types/react-dom": "^18.0.6",
-    "parcel": "^2.7.0"
+    "@types/react": "^18.0.25",
+    "@types/react-dom": "^18.0.9",
+    "parcel": "^2.8.0"
   },
   "dependencies": {
-    "@mantine/core": "^5.6.1",
-    "@mantine/hooks": "^5.6.1",
-    "@tauri-apps/api": "^1.1.0",
+    "@mantine/core": "^5.8.2",
+    "@mantine/hooks": "^5.8.2",
+    "@tauri-apps/api": "^1.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recoil": "^0.7.6",
