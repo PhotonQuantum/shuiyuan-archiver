@@ -25,7 +25,7 @@ export const Login = () => {
     }
 
     const loginWithOAuthKey = async () => {
-        const token = await invoke("token_from_oauth", {oauthKey: OAuthKey}) as string;
+        const token = await invoke("token_from_oauth", {oauthKey: OAuthKey.replaceAll("\n", "")}) as string;
         if (token !== '') {
             setToken(token);
         } else {
