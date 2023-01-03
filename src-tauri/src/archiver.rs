@@ -20,7 +20,8 @@ use handlebars::{handlebars_helper, html_escape, no_escape, Handlebars};
 use html2text::render::text_renderer::TrivialDecorator;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use regex::Regex;
+use parking_lot::RwLock;
+use regex::{Captures, Regex};
 use reqwest::header::CONTENT_TYPE;
 use reqwest_middleware::ClientWithMiddleware;
 use sanitize_filename::sanitize;
@@ -38,6 +39,17 @@ use crate::{get_current_time, Result};
 
 const RESOURCES: &[u8] = include_bytes!("../resources.tar.gz");
 const TEMPLATE: &str = include_str!("../templates/index.hbs");
+
+// Minimum trimmed length for an ascii username to be replaced globally in a post on anonymous mode.
+const MIN_ASCII_NAME_LENGTH: usize = 5;
+// Minimum trimmed length for a unicode username to be replaced globally in a post on anonymous mode.
+const MIN_UNICODE_NAME_LENGTH: usize = 2;
+
+static RE_MENTION: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"<a class="mention" href="/u/.*">@(.*)</a>"#).unwrap());
+static RE_QUOTE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"<img .* src=".*" class="avatar"> (.*):</div>"#).unwrap());
+static RE_FROM: Lazy<Regex> = Lazy::new(|| Regex::new(r#"来自 (.*)</a>"#).unwrap());
 
 handlebars_helper!(escape: |x: String| html_escape(&x));
 
@@ -64,7 +76,8 @@ pub struct Archiver {
     to: Arc<Mutex<Option<PathBuf>>>,
     fut_queue: Arc<FutQueue<BoxFuture<'static, Result<()>>>>,
     anonymous: bool,
-    fake_name_project: Arc<Mutex<HashMap<String, String>>>,
+    // On anonymous mode: Name -> Anonymous Name, project names in metadata, and remove names from posts
+    fake_name_project: Arc<RwLock<HashMap<String, String>>>,
     window: Window<Wry>,
 }
 
@@ -153,29 +166,117 @@ impl Archiver {
         }
         Ok(res.into())
     }
+    pub fn collect_anonymous_usernames(&self, posts: &[RespPost]) {
+        let mut fake_name_project = self.fake_name_project.write();
+        for post in posts {
+            // We may have only one of them set because of previous RE_MENTION and RE_QUOTE matches.
+            match (
+                fake_name_project.get(&post.username).cloned(),
+                fake_name_project.get(&post.name).cloned(),
+            ) {
+                (Some(_), Some(_)) => {
+                    // Both set, do nothing.
+                    // Note that they might be not equal because of RE_MENTION and RE_QUOTE matches.
+                }
+                (Some(p), None) => {
+                    // Only project from username set, set project from name.
+                    fake_name_project.insert(post.name.clone(), p);
+                }
+                (None, Some(p)) => {
+                    // Only project from name set, set project from username.
+                    fake_name_project.insert(post.username.clone(), p);
+                }
+                (None, None) => {
+                    // Neither set, set both.
+                    let project: String = Name().fake();
+                    fake_name_project.insert(post.username.clone(), project.clone());
+                    fake_name_project.insert(post.name.clone(), project);
+                }
+            }
+        }
+        for post in posts {
+            // Note: we only gets username for mention and name for quote here.
+            // Theoretically we should fetch the other one too but to avoid long locking we don't.
+            for re in [&RE_MENTION, &RE_QUOTE, &RE_FROM] {
+                for cap in re.captures_iter(&post.cooked) {
+                    fake_name_project
+                        .entry(
+                            cap.get(1)
+                                .expect("has at least one group")
+                                .as_str()
+                                .to_string(),
+                        )
+                        .or_insert_with(|| Name().fake());
+                }
+            }
+        }
+    }
+    pub fn mask_username(&self, s: &str) -> String {
+        let fake_name_project = self.fake_name_project.read();
+
+        let mut s = s.to_string();
+        let re_f: &[(_, fn(&str) -> String)] = &[
+            (&RE_MENTION, |fake_name| {
+                format!(r#"<a class="mention">@{}</a>"#, fake_name)
+            }),
+            (&RE_QUOTE, |fake_name| format!(r#" {}:</div>"#, fake_name)),
+            (&RE_FROM, |fake_name| format!(r#"来自 {}</a>"#, fake_name)),
+        ];
+        for (re, f) in re_f {
+            s = re
+                .replace_all(&s, |caps: &Captures| {
+                    let name = caps.get(1).expect("has at least one group");
+                    let fake_name = fake_name_project
+                        .get(name.as_str())
+                        .expect("should have been collected")
+                        .as_str();
+                    f(fake_name)
+                })
+                .to_string();
+        }
+
+        let s = fake_name_project.iter().fold(s, |s, (name, fake_name)| {
+            match (name.is_ascii(), name.trim().len()) {
+                (true, l) if l >= MIN_ASCII_NAME_LENGTH => s.replace(name, fake_name),
+                (false, l) if l >= MIN_UNICODE_NAME_LENGTH => s.replace(name, fake_name),
+                _ => s,
+            }
+        });
+        s.to_string()
+    }
+    async fn cook_hidden_posts(&self, posts: Vec<RespPost>) -> Result<Vec<RespPost>> {
+        let try_posts = join_all(posts.into_iter().map(|post| async move {
+            if post.cooked_hidden {
+                let resp: RespCooked = self
+                    .client
+                    .get(format!(
+                        "https://shuiyuan.sjtu.edu.cn/posts/{}/cooked.json",
+                        post.id
+                    ))
+                    .send()
+                    .await?
+                    .json()
+                    .await
+                    .wrap_err(format!("unable to reveal {}", post.id))?;
+                Ok(RespPost {
+                    cooked: format!(r#"<p style="color: gray">被折叠的内容</p>{}"#, resp.cooked),
+                    ..post
+                })
+            } else {
+                Ok(post)
+            }
+        }))
+        .await;
+        try_posts.into_iter().collect()
+    }
     async fn process_post(
         &self,
         post: RespPost,
         preloaded_store: Arc<PreloadedStore>,
     ) -> Result<Post> {
+        let mut cooked = post.cooked;
         static RE_AVATAR: Lazy<Regex> =
             Lazy::new(|| Regex::new(r#"<img .* class="avatar">"#).unwrap());
-        let mut cooked = if post.cooked_hidden {
-            let resp: RespCooked = self
-                .client
-                .get(format!(
-                    "https://shuiyuan.sjtu.edu.cn/posts/{}/cooked.json",
-                    post.id
-                ))
-                .send()
-                .await?
-                .json()
-                .await
-                .wrap_err(format!("unable to reveal {}", post.id))?;
-            format!(r#"<p style="color: gray">被折叠的内容</p>{}"#, resp.cooked)
-        } else {
-            post.cooked
-        };
         if self.anonymous {
             cooked = RE_AVATAR.replace_all(&cooked, "").to_string();
         }
@@ -243,15 +344,14 @@ impl Archiver {
         };
         let cooked = self.prepare_cooked(cooked);
         let (name, username, avatar, cooked) = if self.anonymous {
-            let mut cooked = cooked;
-            let mut fake_name_project = self.fake_name_project.lock().unwrap();
-            fake_name_project.iter().for_each(|(k, v)| {
-                cooked = cooked.replace(k, v);
-            });
-            let fake_name = fake_name_project
-                .entry(post.username)
-                .or_insert_with(|| Name().fake())
-                .clone();
+            let fake_name = {
+                let fake_name_project = self.fake_name_project.read();
+                fake_name_project
+                    .get(&post.username)
+                    .expect("should have been collected")
+                    .clone()
+            };
+            let cooked = self.mask_username(&cooked);
             ("".to_string(), fake_name, None, cooked)
         } else {
             (post.name, post.username, avatar, cooked)
@@ -332,6 +432,10 @@ impl Archiver {
         *self.to.lock().unwrap() = Some(self.to_base.join(filename));
         fs::create_dir_all(self.to.lock().unwrap().as_ref().unwrap().join("resources"))?;
 
+        // TODO split this into two stages:
+        // 1. download hidden posts & collect fake names
+        // 2. download and replace assets & write to disk
+        // This ensures that all quoted names in the topic are collected before rendering any post.
         let mut futs: FuturesUnordered<_> = resp
             .post_stream
             .stream
@@ -390,9 +494,12 @@ impl Archiver {
             .await?
             .json()
             .await?;
+        // TODO this may leak anonymous username because replace is execute in parallel with username fetching
+        let posts = resp.post_stream.posts;
+        let posts = self.cook_hidden_posts(posts).await?;
+        self.collect_anonymous_usernames(&posts);
         let processed = join_all(
-            resp.post_stream
-                .posts
+            posts
                 .into_iter()
                 .map(|p| self.process_post(p, preloaded_store.clone())),
         )
