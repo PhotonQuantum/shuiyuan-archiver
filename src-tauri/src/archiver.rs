@@ -28,6 +28,7 @@ use sanitize_filename::sanitize;
 use tauri::{Window, Wry};
 use tokio::task::spawn_blocking;
 
+use crate::action_code::ACTION_CODE_MAP;
 use crate::error::ErrorExt;
 use crate::future_queue::FutQueue;
 use crate::models::{
@@ -244,8 +245,22 @@ impl Archiver {
         });
         s.to_string()
     }
-    async fn cook_hidden_posts(&self, posts: Vec<RespPost>) -> Result<Vec<RespPost>> {
-        let try_posts = join_all(posts.into_iter().map(|post| async move {
+    async fn cook_special_posts(&self, posts: Vec<RespPost>) -> Result<Vec<RespPost>> {
+        let posts = posts.into_iter().map(|post| {
+            if let Some((_, system_msg)) = post
+                .action_code
+                .as_ref()
+                .and_then(|code| ACTION_CODE_MAP.iter().find(|(c, _)| c == &code))
+            {
+                RespPost {
+                    cooked: format!("<p>系统消息：{}</p>", system_msg),
+                    ..post
+                }
+            } else {
+                post
+            }
+        });
+        let try_posts = join_all(posts.map(|post| async move {
             if post.cooked_hidden {
                 let resp: RespCooked = self
                     .client
@@ -496,7 +511,7 @@ impl Archiver {
             .await?;
         // TODO this may leak anonymous username because replace is execute in parallel with username fetching
         let posts = resp.post_stream.posts;
-        let posts = self.cook_hidden_posts(posts).await?;
+        let posts = self.cook_special_posts(posts).await?;
         self.collect_anonymous_usernames(&posts);
         let processed = join_all(
             posts

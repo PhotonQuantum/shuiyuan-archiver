@@ -70,6 +70,7 @@ pub struct RespPost {
     pub reply_to_post_number: Option<usize>,
     pub retorts: Vec<RespRetort>,
     pub avatar_template: String,
+    pub action_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

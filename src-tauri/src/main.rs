@@ -22,6 +22,7 @@ use crate::client::{create_client_with_token, decrypt_payload};
 use crate::rate_limit::RateLimitWatcher;
 use crate::store::Store;
 
+mod action_code;
 mod archiver;
 mod client;
 mod error;
