@@ -31,12 +31,12 @@ pub struct RespCategory {
 
 #[derive(Debug, Deserialize)]
 pub struct RespCategoryInner {
-    pub name: String,
-    pub color: String,
+    #[serde(flatten)]
+    pub inner: Category,
     pub parent_category_id: Option<usize>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Category {
     pub name: String,
     pub color: String,
