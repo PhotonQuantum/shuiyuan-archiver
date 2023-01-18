@@ -18,7 +18,7 @@ struct Payload {
 }
 
 pub fn decrypt_payload(payload: &str, key: &RsaPrivateKey) -> Result<String> {
-    let ciphertext = base64::decode(&payload.replace(' ', "").trim())?;
+    let ciphertext = base64::decode(payload.replace(' ', "").trim())?;
 
     let decrypted = key.decrypt(PaddingScheme::PKCS1v15Encrypt, &ciphertext)?;
 

@@ -10,14 +10,14 @@ use std::process::Command;
 use std::str::FromStr;
 use std::sync::Mutex;
 
-use chrono::Local;
 use reqwest::Client;
 use rsa::pkcs1::EncodeRsaPublicKey;
 use rsa::RsaPrivateKey;
 use tauri::Wry;
+use tokio::sync::mpsc::channel;
 use uuid::Uuid;
 
-use crate::archiver::Archiver;
+use crate::archiver::DownloadEvent;
 use crate::client::{create_client_with_token, decrypt_payload};
 use crate::rate_limit::RateLimitWatcher;
 use crate::store::Store;
@@ -26,7 +26,6 @@ mod action_code;
 mod archiver;
 mod client;
 mod error;
-mod future_queue;
 mod middleware;
 mod models;
 mod preloaded_store;
@@ -35,7 +34,8 @@ mod shared_promise;
 mod store;
 mod url_scheme;
 
-type Result<T, E = Box<dyn StdError + Send + Sync>> = std::result::Result<T, E>;
+type BoxedError = Box<dyn StdError + Send + Sync>;
+type Result<T, E = BoxedError> = std::result::Result<T, E>;
 
 #[tauri::command]
 fn open_browser(key: tauri::State<RsaPrivateKey>) {
@@ -118,11 +118,46 @@ async fn archive(
         Ok(client) => {
             let path = PathBuf::from(save_at);
             *saved_folder.lock().unwrap() = Some(path.clone());
-            let archiver = Archiver::new(client, topic, path, mask_user, window);
-            if let Err(e) = archiver.download().await {
+            let (tx, mut rx) = channel(8);
+            tokio::spawn(async move {
+                let (
+                    mut chunks_total,
+                    mut chunks_downloaded,
+                    mut assets_downloaded,
+                    mut assets_total,
+                ) = (0, 0, 0, 0);
+                while let Some(ev) = rx.recv().await {
+                    match ev {
+                        DownloadEvent::FetchingMeta => {
+                            println!("Fetching Metadata");
+                        }
+                        DownloadEvent::PostChunksTotal(n) => {
+                            chunks_total = n;
+                        }
+                        DownloadEvent::PostChunksDownloadedInc => {
+                            chunks_downloaded += 1;
+                            println!("Chunks: {}/{}", chunks_downloaded, chunks_total);
+                        }
+                        DownloadEvent::ResourceTotalInc => {
+                            assets_total += 1;
+                            println!("Assets: {}/{}", assets_downloaded, assets_total);
+                        }
+                        DownloadEvent::ResourceDownloadedInc => {
+                            assets_downloaded += 1;
+                            println!("Assets: {}/{}", assets_downloaded, assets_total);
+                        }
+                    }
+                }
+            });
+            if let Err(e) = crate::archiver::archive(&client, topic, &path, mask_user, tx).await {
                 sentry::capture_error(&*e);
                 return Err(e.to_string());
             }
+            // let archiver = Archiver::new(client, topic, path, mask_user, window);
+            // if let Err(e) = archiver.download().await {
+            //     sentry::capture_error(&*e);
+            //     return Err(e.to_string());
+            // }
             Ok(())
         }
         Err(e) => {
@@ -185,10 +220,6 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-fn get_current_time() -> String {
-    Local::now().format("%Y-%m-%d_%H:%M:%S").to_string()
 }
 
 fn generate_client_id() -> String {
