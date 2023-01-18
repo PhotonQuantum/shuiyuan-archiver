@@ -6,6 +6,7 @@ use reqwest::{Request, Response, StatusCode};
 use reqwest_middleware::Result;
 use reqwest_middleware::{Middleware, Next};
 use task_local_extensions::Extensions;
+use tokio::sync::Semaphore;
 
 use crate::RateLimitWatcher;
 
@@ -56,5 +57,30 @@ impl Middleware for RetryMiddleware {
         next: Next<'_>,
     ) -> Result<Response> {
         self.execute(req, extensions, next).await
+    }
+}
+
+pub struct MaxConnMiddleware {
+    sem: Semaphore,
+}
+
+impl MaxConnMiddleware {
+    pub fn new(max_conn: usize) -> Self {
+        Self {
+            sem: Semaphore::new(max_conn),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Middleware for MaxConnMiddleware {
+    async fn handle(
+        &self,
+        req: Request,
+        extensions: &mut Extensions,
+        next: Next<'_>,
+    ) -> Result<Response> {
+        let _permit = self.sem.acquire().await;
+        next.run(req, extensions).await
     }
 }
