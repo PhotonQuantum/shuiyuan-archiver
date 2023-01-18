@@ -6,9 +6,11 @@ use reqwest_retry::RetryTransientMiddleware;
 use rsa::{PaddingScheme, RsaPrivateKey};
 use serde::Deserialize;
 
-use crate::middleware::RetryMiddleware;
+use crate::middleware::{MaxConnMiddleware, RetryMiddleware};
 use crate::RateLimitWatcher;
 use crate::Result;
+
+const MAX_CONN: usize = 8;
 
 #[derive(Debug, Deserialize)]
 struct Payload {
@@ -43,6 +45,7 @@ pub async fn create_client_with_token(
         .with(RetryTransientMiddleware::new_with_policy(
             ExponentialBackoffBuilder::default().build_with_max_retries(3),
         ))
+        .with(MaxConnMiddleware::new(MAX_CONN))
         .build();
 
     client
