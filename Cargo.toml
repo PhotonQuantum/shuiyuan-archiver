@@ -1,0 +1,10 @@
+[workspace]
+members = ["core", "gui/src-tauri"]
+
+[profile.release]
+strip = true
+lto = true
+
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
+

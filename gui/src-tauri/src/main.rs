@@ -10,58 +10,36 @@ use std::process::Command;
 use std::str::FromStr;
 use std::sync::Mutex;
 
-use reqwest::Client;
-use rsa::pkcs1::EncodeRsaPublicKey;
-use rsa::RsaPrivateKey;
+use once_cell::sync::Lazy;
 use tauri::Wry;
 use tokio::sync::mpsc::channel;
-use uuid::Uuid;
 
-use crate::archiver::DownloadEvent;
-use crate::client::{create_client_with_token, decrypt_payload};
-use crate::rate_limit::RateLimitWatcher;
+use sa_core::archiver;
+use sa_core::archiver::DownloadEvent;
+use sa_core::client::{create_client_with_token, oauth_url, token_from_payload};
+use sa_core::re_exports::reqwest;
+use sa_core::re_exports::rsa;
+use sa_core::re_exports::uuid::Uuid;
+
 use crate::store::Store;
 
-mod action_code;
-mod archiver;
-mod client;
-mod error;
-mod middleware;
-mod models;
-mod preloaded_store;
-mod rate_limit;
-mod shared_promise;
 mod store;
 mod url_scheme;
 
 type BoxedError = Box<dyn StdError + Send + Sync>;
 type Result<T, E = BoxedError> = std::result::Result<T, E>;
 
+const APP_ID: Lazy<Uuid> =
+    Lazy::new(|| Uuid::from_str("1bf328bf-239b-46ed-9696-92fdcb51f2b1").unwrap());
+
 #[tauri::command]
-fn open_browser(key: tauri::State<RsaPrivateKey>) {
-    let query = &[
-        ("application_name", "Shuiyuan Archiver"),
-        ("client_id", &generate_client_id()),
-        ("scopes", "session_info,read"),
-        ("nonce", "1"),
-        (
-            "public_key",
-            &key.to_public_key()
-                .to_pkcs1_pem(Default::default())
-                .unwrap(),
-        ),
-    ];
-    let parsed_query = serde_urlencoded::to_string(query).expect("failed to encode query");
-    let url = format!(
-        "https://shuiyuan.sjtu.edu.cn/user-api-key/new?{}",
-        parsed_query
-    );
-    webbrowser::open(&url).expect("no browser");
+fn open_browser(key: tauri::State<rsa::RsaPrivateKey>) {
+    webbrowser::open(&oauth_url(&APP_ID, &key)).expect("no browser");
 }
 
 #[tauri::command]
-fn token_from_oauth(oauth_key: String, key: tauri::State<RsaPrivateKey>) -> String {
-    decrypt_payload(&oauth_key, &key).unwrap_or_default()
+fn token_from_oauth(payload: String, key: tauri::State<rsa::RsaPrivateKey>) -> String {
+    token_from_payload(&payload, &key).unwrap_or_default()
 }
 
 #[tauri::command]
@@ -83,14 +61,14 @@ fn del_token(state: tauri::State<Store>) {
 
 #[tauri::command]
 async fn validate_token(token: String) -> bool {
-    let client = Client::new();
+    let client = reqwest::Client::new();
     let resp = client
         .get("https://shuiyuan.sjtu.edu.cn/session/current.json")
-        .header("user-api-key", dbg!(token))
+        .header("user-api-key", token)
         .send()
         .await;
     match resp {
-        Ok(resp) => dbg!(resp.status()).is_success(),
+        Ok(resp) => resp.status().is_success(),
         Err(_) => false,
     }
 }
@@ -113,8 +91,7 @@ async fn archive(
     window: tauri::Window<Wry>,
     saved_folder: tauri::State<'_, Mutex<Option<PathBuf>>>,
 ) -> Result<(), String> {
-    let watcher = RateLimitWatcher::new(window.clone());
-    match create_client_with_token(&token, watcher).await {
+    match create_client_with_token(&token, |_| ()).await {
         Ok(client) => {
             let path = PathBuf::from(save_at);
             *saved_folder.lock().unwrap() = Some(path.clone());
@@ -149,15 +126,10 @@ async fn archive(
                     }
                 }
             });
-            if let Err(e) = crate::archiver::archive(&client, topic, &path, mask_user, tx).await {
+            if let Err(e) = archiver::archive(&client, topic, &path, mask_user, tx).await {
                 sentry::capture_error(&*e);
                 return Err(e.to_string());
             }
-            // let archiver = Archiver::new(client, topic, path, mask_user, window);
-            // if let Err(e) = archiver.download().await {
-            //     sentry::capture_error(&*e);
-            //     return Err(e.to_string());
-            // }
             Ok(())
         }
         Err(e) => {
@@ -200,7 +172,7 @@ fn main() {
     });
 
     let store = Store::new().expect("failed to initialize store");
-    let key = RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
+    let key = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
     let saved_folder: Mutex<Option<PathBuf>> = Mutex::new(None);
 
     tauri::Builder::default()
@@ -220,13 +192,4 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-fn generate_client_id() -> String {
-    let base_uuid = Uuid::from_str("1bf328bf-239b-46ed-9696-92fdcb51f2b1").unwrap();
-    let mac = mac_address::get_mac_address()
-        .unwrap()
-        .expect("No mac address found");
-    let client_id = Uuid::new_v5(&base_uuid, &mac.bytes());
-    client_id.to_string()
 }

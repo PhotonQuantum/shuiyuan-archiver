@@ -3,7 +3,7 @@
   "source": "src/index.html",
   "scripts": {
     "tauri": "tauri",
-    "start": "parcel src/index.html",
+    "start": "parcel gui/src/index.html",
     "build": "parcel build --no-source-maps"
   },
   "alias": {

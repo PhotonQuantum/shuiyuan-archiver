@@ -5,7 +5,7 @@ use scraper::Selector;
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
 
-use crate::error::ErrorExt;
+use crate::error::Result;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,7 +21,7 @@ pub struct Emoji {
 }
 
 impl PreloadedStore {
-    pub async fn from_client(client: &ClientWithMiddleware) -> super::Result<Self> {
+    pub async fn from_client(client: &ClientWithMiddleware) -> Result<Self> {
         let selector = Selector::parse("#data-preloaded").unwrap();
         let body = client
             .get("https://shuiyuan.sjtu.edu.cn")
@@ -33,10 +33,10 @@ impl PreloadedStore {
         let preloaded = document
             .select(&selector)
             .next()
-            .wrap_err("Missing #data-preloaded element.")?
+            .expect("#data-preloaded")
             .value()
             .attr("data-preloaded")
-            .wrap_err("Missing data-preloaded attribute.")?;
+            .expect("data-preloaded");
         Ok(serde_json::from_str(preloaded)?)
     }
     pub fn custom_emoji(&self, name: &str) -> Option<&str> {
