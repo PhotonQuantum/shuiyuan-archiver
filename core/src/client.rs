@@ -66,10 +66,10 @@ pub async fn create_client_with_token(
         .build()?;
 
     let client = ClientBuilderWithMiddleware::new(client)
-        .with(RetryMiddleware::new(rate_limit_callback))
         .with(RetryTransientMiddleware::new_with_policy(
             ExponentialBackoffBuilder::default().build_with_max_retries(3),
         ))
+        .with(RetryMiddleware::new(rate_limit_callback))
         .with(MaxConnMiddleware::new(MAX_CONN))
         .build();
 
