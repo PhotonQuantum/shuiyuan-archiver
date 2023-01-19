@@ -4,7 +4,7 @@
     "version": "0.3.9"
   },
   "build": {
-    "distDir": "../dist",
+    "distDir": "../../dist",
     "devPath": "http://localhost:1234",
     "beforeDevCommand": "pnpm start",
     "beforeBuildCommand": "pnpm build"

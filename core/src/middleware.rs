@@ -8,13 +8,22 @@ use reqwest_middleware::{Middleware, Next};
 use task_local_extensions::Extensions;
 use tokio::sync::Semaphore;
 
-use crate::RateLimitWatcher;
-
-pub struct RetryMiddleware {
-    rate_limit_watcher: RateLimitWatcher,
+pub struct RetryMiddleware<C> {
+    rate_limit_callback: C,
 }
 
-impl RetryMiddleware {
+impl<C> RetryMiddleware<C> {
+    pub const fn new(rate_limit_callback: C) -> Self {
+        Self {
+            rate_limit_callback,
+        }
+    }
+}
+
+impl<C> RetryMiddleware<C>
+where
+    C: 'static + Fn(u64) + Send + Sync,
+{
     fn execute<'a>(
         &'a self,
         req: Request,
@@ -29,8 +38,7 @@ impl RetryMiddleware {
                 Ok(payload) if payload.status() == StatusCode::TOO_MANY_REQUESTS => {
                     if let Some(retry_after) = payload.headers().get("retry-after") {
                         if let Ok(delay) = retry_after.to_str().unwrap_or_default().parse::<u64>() {
-                            eprintln!("Wait for {} seconds", delay + 1);
-                            self.rate_limit_watcher.register_limit(delay + 1);
+                            (self.rate_limit_callback)(delay + 1);
                             tokio::time::sleep(Duration::from_secs(delay + 1)).await;
                             return self
                                 .execute(duplicate_request, extensions, cloned_next)
@@ -43,13 +51,13 @@ impl RetryMiddleware {
             }
         })
     }
-    pub fn new(rate_limit_watcher: RateLimitWatcher) -> Self {
-        Self { rate_limit_watcher }
-    }
 }
 
 #[async_trait::async_trait]
-impl Middleware for RetryMiddleware {
+impl<C> Middleware for RetryMiddleware<C>
+where
+    C: 'static + Fn(u64) + Send + Sync,
+{
     async fn handle(
         &self,
         req: Request,

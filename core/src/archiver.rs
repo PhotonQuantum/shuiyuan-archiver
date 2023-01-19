@@ -1,6 +1,6 @@
 //! Well this file is really a mess. Good luck if you try to modify it.
-use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::{DefaultHasher, Entry};
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::fs;
 use std::fs::File;
@@ -10,11 +10,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use chrono::{DateTime, Local, Utc};
-use fake::Fake;
 use fake::faker::name::en::Name;
-use futures::{stream, TryStreamExt};
+use fake::Fake;
 use futures::stream::{FuturesOrdered, FuturesUnordered};
-use handlebars::{Handlebars, handlebars_helper, html_escape, no_escape};
+use futures::{stream, TryStreamExt};
+use handlebars::{no_escape, Handlebars};
 use html2text::render::text_renderer::TrivialDecorator;
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
@@ -24,8 +24,8 @@ use sanitize_filename::sanitize;
 use tokio::sync::mpsc::Sender;
 use tokio::task::spawn_blocking;
 
-use crate::{BoxedError, Result};
 use crate::action_code::ACTION_CODE_MAP;
+use crate::error::{BoxedError, Result};
 use crate::models::{
     Category, Params, Post, RespCategory, RespCooked, RespPost, RespPosts, RespRetort, RespTopic,
     Topic,
@@ -50,28 +50,47 @@ static RE_QUOTE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"<img .* src=".*" class="avatar"> (.*):</div>"#).unwrap());
 static RE_FROM: Lazy<Regex> = Lazy::new(|| Regex::new(r#"来自 (.*)</a>"#).unwrap());
 
-handlebars_helper!(escape: |x: String| html_escape(&x));
+mod private {
+    use handlebars::{handlebars_helper, html_escape};
 
-pub static HANDLEBARS: Lazy<Handlebars<'_>> = Lazy::new(|| {
+    handlebars_helper!(escape: | x: String | html_escape( & x));
+}
+
+static HANDLEBARS: Lazy<Handlebars<'_>> = Lazy::new(|| {
     let mut handlebars = Handlebars::new();
     handlebars.register_escape_fn(no_escape);
     handlebars.set_strict_mode(true);
-    handlebars.register_helper("escape", Box::new(escape));
+    handlebars.register_helper("escape", Box::new(private::escape));
     handlebars
         .register_template_string("index", TEMPLATE)
         .unwrap();
     handlebars
 });
 
+/// Download events.
 #[derive(Debug, Copy, Clone)]
 pub enum DownloadEvent {
+    /// Fetching topic metadata.
     FetchingMeta,
+    /// Total post chunks to download. It's determined once metadata is fetched.
     PostChunksTotal(usize),
+    /// A post chunk is downloaded.
     PostChunksDownloadedInc,
+    /// A new resource has been discovered. Total count of resources to download is not known
+    /// because of incremental fetching.
     ResourceTotalInc,
+    /// A resource is downloaded.
     ResourceDownloadedInc,
 }
 
+/// Archive given topic into directory.
+///
+/// # Arguments
+///
+/// * `topic_id` - The topic id to archive.
+/// * `save_to_base` - The base directory to save the archive to.
+/// * `anonymous` - Whether to anonymize usernames.
+/// * `reporter` - The sender to send download events to.
 pub async fn archive(
     client: &Client,
     topic_id: usize,
@@ -101,16 +120,19 @@ pub async fn archive(
         &topic_meta,
         reporter,
     )
-        .await?;
+    .await?;
 
     // 3. If anonymous mode enabled, mask all usernames.
     if anonymous {
         let fake_name_map = collect_anonymous_names(&posts);
         for post in &mut posts {
             post.name = String::new();
-            post.username = fake_name_map.get(&post.username).unwrap().clone();
+            post.username = fake_name_map
+                .get(&post.username)
+                .expect("collected")
+                .clone();
             post.avatar = None;
-            post.content = mask_username_in_cooked(&fake_name_map, post.content.clone())
+            post.content = mask_username_in_cooked(&fake_name_map, post.content.clone());
         }
     }
 
@@ -128,7 +150,7 @@ pub async fn archive(
 
 fn write_page(meta: TopicMeta, page: usize, posts: Vec<Post>, save_to: &Path) -> Result<()> {
     let post_count = meta.post_ids.len();
-    let total_pages = (post_count as f64 / EXPORT_PAGE_SIZE as f64).ceil() as usize;
+    let total_pages = ceil_div(post_count, EXPORT_PAGE_SIZE);
     let last_page = page == post_count;
     let topic = Topic {
         id: meta.id,
@@ -150,7 +172,7 @@ fn write_page(meta: TopicMeta, page: usize, posts: Vec<Post>, save_to: &Path) ->
     let filename = if page == 1 {
         String::from("index.html")
     } else {
-        format!("{}.html", page)
+        format!("{page}.html")
     };
     let output = File::create(save_to.join(filename))?;
     Ok(HANDLEBARS.render_to_write("index", &params, output)?)
@@ -164,7 +186,9 @@ async fn fetch_avatar(download_manager: &DownloadManager, resp_post: &RespPost) 
         avatar_url.split('/').last().unwrap()
     );
 
-    download_manager.download_avatar(avatar_url, &avatar_filename).await
+    download_manager
+        .download_avatar(avatar_url, &avatar_filename)
+        .await
 }
 
 fn likes_of_resp_post(resp_post: &RespPost) -> usize {
@@ -246,7 +270,7 @@ async fn process_resp_post(
 }
 
 fn ceil_div(x: usize, y: usize) -> usize {
-    x / y + (x % y != 0) as usize
+    x / y + usize::from(x % y != 0)
 }
 
 async fn fetch_resp_posts(
@@ -260,8 +284,13 @@ async fn fetch_resp_posts(
     let topic_id = topic_meta.id;
     let posts_total = topic_meta.post_ids.len();
     let chunks_total = ceil_div(posts_total, FETCH_PAGE_SIZE);
-    println!("posts_total/fetch_page_size = {}/{} = {}", posts_total, FETCH_PAGE_SIZE, chunks_total);
-    reporter.send(DownloadEvent::PostChunksTotal(chunks_total)).await?;
+    println!(
+        "posts_total/fetch_page_size = {}/{} = {}",
+        posts_total, FETCH_PAGE_SIZE, chunks_total
+    );
+    reporter
+        .send(DownloadEvent::PostChunksTotal(chunks_total))
+        .await?;
 
     let futs: FuturesOrdered<_> = topic_meta
         .post_ids
@@ -269,7 +298,7 @@ async fn fetch_resp_posts(
         .map(move |post_ids| {
             let reporter = reporter.clone();
 
-            let url = format!("https://shuiyuan.sjtu.edu.cn/t/{}/posts.json", topic_id);
+            let url = format!("https://shuiyuan.sjtu.edu.cn/t/{topic_id}/posts.json");
             let query: Vec<_> = post_ids.iter().map(|i| ("post_ids[]", i)).collect();
             async move {
                 let resp: RespPosts = client.get(url).query(&query).send().await?.json().await?;
@@ -308,18 +337,16 @@ async fn fetch_assets_by_cooked(
 ) -> Result<String> {
     let asset_urls: Vec<_> = extract_asset_url(content)
         .into_iter()
-        .map(|s| {
-            (
-                s.clone(),
-                s.split('/').last().unwrap().to_string(),
-            )
-        })
+        .map(|s| (s.clone(), s.split('/').last().unwrap().to_string()))
         .collect();
 
     let mut content = content.to_string();
     for (url, name) in &asset_urls {
-        content = content.replace(&format!("https://shuiyuan.sjtu.edu.cn{}", url), &format!("resources/{}", name));
-        content = content.replace(url, &format!("resources/{}", name));
+        content = content.replace(
+            &format!("https://shuiyuan.sjtu.edu.cn{url}"),
+            &format!("resources/{name}"),
+        );
+        content = content.replace(url, &format!("resources/{name}"));
     }
 
     let futs: FuturesUnordered<_> = asset_urls
@@ -331,8 +358,8 @@ async fn fetch_assets_by_cooked(
     Ok(content)
 }
 
-pub fn collect_anonymous_names<'a>(
-    posts: impl IntoIterator<Item=&'a Post> + Clone,
+fn collect_anonymous_names<'a>(
+    posts: impl IntoIterator<Item = &'a Post> + Clone,
 ) -> HashMap<String, String> {
     let mut fake_name_map = HashMap::new();
     for post in posts.clone() {
@@ -365,10 +392,10 @@ fn mask_username_in_cooked(fake_name_map: &HashMap<String, String>, mut s: Strin
     #[allow(clippy::type_complexity)]
     let re_f: &[(_, fn(&str) -> String)] = &[
         (&RE_MENTION, |fake_name| {
-            format!(r#"<a class="mention">@{}</a>"#, fake_name)
+            format!(r#"<a class="mention">@{fake_name}</a>"#)
         }),
-        (&RE_QUOTE, |fake_name| format!(r#" {}:</div>"#, fake_name)),
-        (&RE_FROM, |fake_name| format!(r#"来自 {}</a>"#, fake_name)),
+        (&RE_QUOTE, |fake_name| format!(r#" {fake_name}:</div>"#)),
+        (&RE_FROM, |fake_name| format!(r#"来自 {fake_name}</a>"#)),
     ];
     for (re, f) in re_f {
         s = re
@@ -420,7 +447,7 @@ impl DownloadManager {
 
         self.reporter.send(DownloadEvent::ResourceTotalInc).await?;
 
-        let url = format!("https://shuiyuan.sjtu.edu.cn{}", from);
+        let url = format!("https://shuiyuan.sjtu.edu.cn{from}");
         let resp = self.client.get(url).send().await?.bytes().await?;
 
         let save_path = self.save_to.join("resources").join(filename);
@@ -428,7 +455,9 @@ impl DownloadManager {
 
         spawn_blocking(move || to.write_all(&resp)).await??;
 
-        self.reporter.send(DownloadEvent::ResourceDownloadedInc).await?;
+        self.reporter
+            .send(DownloadEvent::ResourceDownloadedInc)
+            .await?;
         Ok(())
     }
     async fn download_avatar(&self, from: String, filename: &str) -> Result<PathBuf> {
@@ -450,7 +479,7 @@ impl DownloadManager {
 
         self.reporter.send(DownloadEvent::ResourceTotalInc).await?;
 
-        let url = format!("https://shuiyuan.sjtu.edu.cn{}", from);
+        let url = format!("https://shuiyuan.sjtu.edu.cn{from}");
         let resp = self.client.get(url).send().await?;
         let content_type = resp.headers().get(CONTENT_TYPE).unwrap();
         if content_type.to_str().unwrap().contains("svg") {
@@ -464,13 +493,15 @@ impl DownloadManager {
         spawn_blocking(move || file.write_all(&bytes)).await??;
         swear.fulfill(relative_path.clone());
 
-        self.reporter.send(DownloadEvent::ResourceDownloadedInc).await?;
+        self.reporter
+            .send(DownloadEvent::ResourceDownloadedInc)
+            .await?;
         Ok(relative_path)
     }
 }
 
 #[derive(Clone)]
-pub struct TopicMeta {
+struct TopicMeta {
     pub id: usize,
     pub title: String,
     pub description: String,
@@ -481,7 +512,7 @@ pub struct TopicMeta {
 
 /// Fetch topic meta data.
 async fn fetch_topic_meta(client: &Client, topic_id: usize) -> Result<TopicMeta> {
-    let url = format!("https://shuiyuan.sjtu.edu.cn/t/{}.json", topic_id);
+    let url = format!("https://shuiyuan.sjtu.edu.cn/t/{topic_id}.json");
     let resp: RespTopic = client.get(url).send().await?.json().await?;
 
     let first_post = resp.post_stream.posts.first().expect("at least one post");
@@ -500,15 +531,15 @@ async fn fetch_topic_meta(client: &Client, topic_id: usize) -> Result<TopicMeta>
 /// Get category names from a leaf category id.
 async fn categories_from_id(client: &Client, leaf_id: usize) -> Result<Vec<Category>> {
     stream::try_unfold(leaf_id, |id| async move {
-        let url = format!("https://shuiyuan.sjtu.edu.cn/c/{}/show.json", id);
+        let url = format!("https://shuiyuan.sjtu.edu.cn/c/{id}/show.json");
         let resp: RespCategory = client.get(url).send().await?.json().await?;
 
         let yielded = resp.category.inner;
         let next = resp.category.parent_category_id;
         Ok(next.map(|id| (yielded, id)))
     })
-        .try_collect()
-        .await
+    .try_collect()
+    .await
 }
 
 /// Reveal hidden posts and convert system messages.
@@ -519,7 +550,7 @@ async fn cook_special_post(client: &Client, post: RespPost) -> Result<RespPost> 
         .and_then(|code| ACTION_CODE_MAP.iter().find(|(c, _)| c == code))
     {
         Ok(RespPost {
-            cooked: format!("<p>系统消息：{}</p>", system_msg),
+            cooked: format!("<p>系统消息：{system_msg}</p>"),
             ..post
         })
     } else if post.cooked_hidden {
@@ -562,13 +593,13 @@ fn extract_asset_url(content: &str) -> Vec<String> {
         Regex::new(&format!(
             r#"https?://shuiyuan.sjtu.edu.cn([^)'",]+.(?:{IMAGE_SUFFIX}|{VIDEO_SUFFIX}))"#
         ))
-            .unwrap()
+        .unwrap()
     });
     static UPLOAD_URL_RE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(&format!(
             r#"/uploads[^)'",\\]+.(?:{IMAGE_SUFFIX}|{VIDEO_SUFFIX})"#
         ))
-            .unwrap()
+        .unwrap()
     });
     let full_url_caps = FULL_URL_RE
         .captures_iter(content)
