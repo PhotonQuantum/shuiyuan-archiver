@@ -151,7 +151,7 @@ pub async fn archive(
 fn write_page(meta: TopicMeta, page: usize, posts: Vec<Post>, save_to: &Path) -> Result<()> {
     let post_count = meta.post_ids.len();
     let total_pages = ceil_div(post_count, EXPORT_PAGE_SIZE);
-    let last_page = page == post_count;
+    let last_page = page == total_pages;
     let topic = Topic {
         id: meta.id,
         title: meta.title,
