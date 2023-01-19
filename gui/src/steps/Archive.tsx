@@ -1,6 +1,6 @@
 import {Alert, Center, Group, Loader, Stack, Text} from "@mantine/core";
 import {appWindow} from "@tauri-apps/api/window";
-import {useRecoilState, useSetRecoilState} from "recoil";
+import {useRecoilValue, useSetRecoilState} from "recoil";
 import {useEffect, useState} from "react";
 import {invoke} from "@tauri-apps/api";
 import {archiveResultState, currentStep, maskUserState, saveAtState, tokenState, topicState} from "../states";
@@ -12,10 +12,10 @@ type UnlistenStruct = {
 }
 
 export const Archive = () => {
-    const [token, _0] = useRecoilState(tokenState);
-    const [topic, _1] = useRecoilState(topicState);
-    const [saveAt, _2] = useRecoilState(saveAtState);
-    const [maskUser, _3] = useRecoilState(maskUserState);
+    const token = useRecoilValue(tokenState);
+    const topic = useRecoilValue(topicState);
+    const saveAt = useRecoilValue(saveAtState);
+    const maskUser = useRecoilValue(maskUserState);
     const setArchiveResult = useSetRecoilState(archiveResultState);
     const setStep = useSetRecoilState(currentStep);
 

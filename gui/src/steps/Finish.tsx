@@ -1,12 +1,12 @@
 import {Button, Center, Group, Stack, Text, ThemeIcon} from "@mantine/core";
 import {MoodCry, MoodSmile} from "tabler-icons-react";
-import {useRecoilState} from "recoil";
+import {useRecoilState, useSetRecoilState} from "recoil";
 import {archiveResultState, currentStep} from "../states";
 import {invoke} from "@tauri-apps/api";
 
 export const Finish = () => {
     const [{message, success}, _] = useRecoilState(archiveResultState);
-    const [step, setStep] = useRecoilState(currentStep);
+    const setStep = useSetRecoilState(currentStep);
     return (
         <Stack pt={50}>
             <Center>
