@@ -36,7 +36,8 @@ export const Login = () => {
 
     useEffect(() => {
         if (token !== '') {
-            validateToken(token);
+            validateToken(token).then(_ => {
+            });
         }
     }, [token]);
 
@@ -62,7 +63,7 @@ export const Login = () => {
                 />
                 <Space/>
                 <Button disabled={!enabled} onClick={() => {
-                    loginWithOAuthKey()
+                    loginWithOAuthKey().then(_ => {})
                 }}>登录</Button>
             </Stack>
         )}</>
