@@ -1,18 +1,16 @@
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::fs::File;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use reqwest::header::CONTENT_TYPE;
-use scopeguard::ScopeGuard;
 use tap::{Pipe, TapFallible, TapOptional};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Semaphore;
 use tracing::{error, warn};
 
 use crate::archiver::DownloadEvent;
+use crate::atomic_file::AtomicFile;
 use crate::client::{Client, IntoRequestBuilderWrapped, RequestBuilderExt, ResponseExt};
 use crate::error;
 use crate::shared_promise::{shared_promise_pair, SharedPromise};
@@ -74,19 +72,14 @@ impl DownloadManager {
                 async move {
                     let resp = req.send().await?;
 
-                    let delete_guard = scopeguard::guard((), |_| {
-                        drop(fs::remove_file(&save_path).tap_err(|e| {
-                            warn!(?save_path, ?e, "Failed to remove file on error");
-                        }));
-                    });
                     let _guard = open_files_sem.acquire().await.expect("semaphore closed");
-                    let mut file = File::create(&save_path)
-                        .tap_err(|e| error!(?save_path, ?e, "[download_asset] file_create"))?;
+                    let file = AtomicFile::new(&save_path).tap_err(|e| {
+                        error!(?save_path, ?e, "[download_asset] atomic_file_create");
+                    })?;
 
-                    resp.bytes_to_writer(&mut file)
-                        .await
-                        .tap_err(|e| error!(?save_path, ?e, "[download_asset] file_write"))?;
-                    ScopeGuard::into_inner(delete_guard); // defuse
+                    resp.bytes_to_atomic_file(file).await.tap_err(|e| {
+                        error!(?save_path, ?e, "[download_asset] atomic_file_write");
+                    })?;
                     Ok(())
                 }
             })
@@ -133,27 +126,13 @@ impl DownloadManager {
                             }
 
                             let _guard = open_files_sem.acquire().await.expect("semaphore closed");
-                            let delete_guard = scopeguard::guard((), |_| {
-                                drop(fs::remove_file(&save_path).tap_err(|e| {
-                                    warn!(
-                                        "Failed to remove file on error ({}): {:?}",
-                                        save_path.display(),
-                                        e
-                                    );
-                                }));
-                            });
-                            let mut file = File::create(&save_path).tap_err(|e| {
-                                error!(
-                                    "[download_asset] file_create({}): {:?}",
-                                    save_path.display(),
-                                    e
-                                );
+                            let file = AtomicFile::new(&save_path).tap_err(|e| {
+                                error!(?save_path, ?e, "[download_avatar] atomic_file_create");
                             })?;
 
-                            resp.bytes_to_writer(&mut file)
-                                .await
-                                .tap_err(|e| error!("[download_asset] file_write: {:?}", e))?;
-                            ScopeGuard::into_inner(delete_guard); // defuse
+                            resp.bytes_to_atomic_file(file).await.tap_err(|e| {
+                                error!(?save_path, ?e, "[download_avatar] atomic_file_write");
+                            })?;
                             Ok(())
                         }
                     })

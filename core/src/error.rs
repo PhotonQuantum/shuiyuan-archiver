@@ -1,6 +1,7 @@
 use std::io;
 
 use futures_retry_policies::ShouldRetry;
+use tempfile::PersistError;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tracing::warn;
@@ -29,6 +30,10 @@ pub enum Error {
     Rsa(#[from] rsa::errors::Error),
     #[error("bytes stream stuck")]
     StreamStuck,
+    #[error("atomic file poisoned")]
+    AtomicFilePoisoned,
+    #[error("atomic file write error: {0}")]
+    AtomicFileWrite(#[from] PersistError),
 }
 
 impl ShouldRetry for Error {

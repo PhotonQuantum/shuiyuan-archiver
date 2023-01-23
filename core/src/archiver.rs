@@ -10,12 +10,12 @@ use futures::TryStreamExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sanitize_filename::sanitize;
-use tokio::sync::Barrier;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::Barrier;
 
 use crate::archiver::download_manager::DownloadManager;
 use crate::archiver::template::HANDLEBARS;
-use crate::client::{Client, MAX_CONN, MAX_THROTTLE_WEIGHT, RequestBuilderExt};
+use crate::client::{Client, RequestBuilderExt, MAX_CONN, MAX_THROTTLE_WEIGHT};
 use crate::error::{Error, Result};
 use crate::models::{Params, Post, RespPost, RespPosts, Topic, TopicMeta};
 use crate::preloaded_store::PreloadedStore;
@@ -90,7 +90,7 @@ pub async fn archive(
         &topic_meta,
         reporter,
     )
-        .await?;
+    .await?;
 
     // 3. If anonymous mode enabled, mask all usernames.
     if anonymous {
