@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 use std::future::Future;
+use std::iter;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{io, iter};
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -21,8 +21,10 @@ use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use tokio::sync::Semaphore;
+use tracing::info;
 use uuid::Uuid;
 
+use crate::atomic_file::AtomicFile;
 use crate::error::{Error, Result};
 use crate::middleware::{BypassThrottle, RetryMiddleware};
 
@@ -310,21 +312,24 @@ pub async fn create_client_with_token(
 
 #[async_trait::async_trait]
 pub trait ResponseExt {
-    async fn bytes_to_writer(self, writer: impl io::Write + Send + Sync) -> Result<()>;
+    async fn bytes_to_atomic_file(self, file: AtomicFile) -> Result<()>;
 }
 
 #[async_trait::async_trait]
 impl ResponseExt for Response {
-    async fn bytes_to_writer(self, mut writer: impl io::Write + Send + Sync) -> Result<()> {
+    async fn bytes_to_atomic_file(self, mut file: AtomicFile) -> Result<()> {
         let mut stream = self.bytes_stream();
         loop {
             break match tokio::time::timeout(Duration::from_secs(10), stream.next()).await {
                 Ok(Some(Ok(bytes))) => {
-                    writer.write_all(&bytes)?;
+                    file.write(bytes).await?;
                     continue;
                 }
                 Ok(Some(Err(e))) => Err(e.into()),
-                Ok(None) => Ok(()),
+                Ok(None) => {
+                    file.commit().await?;
+                    Ok(())
+                }
                 Err(_) => Err(Error::StreamStuck),
             };
         }

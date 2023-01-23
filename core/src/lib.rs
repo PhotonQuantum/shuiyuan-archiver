@@ -5,6 +5,7 @@
 )]
 mod action_code;
 pub mod archiver;
+mod atomic_file;
 pub mod client;
 pub mod error;
 mod middleware;
