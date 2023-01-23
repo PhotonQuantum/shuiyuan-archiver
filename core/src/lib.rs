@@ -1,4 +1,8 @@
-#![allow(clippy::module_name_repetitions, clippy::default_trait_access)]
+#![allow(
+    clippy::module_name_repetitions,
+    clippy::default_trait_access,
+    clippy::cast_possible_truncation
+)]
 mod action_code;
 pub mod archiver;
 pub mod client;

@@ -121,3 +121,13 @@ impl From<Topic> for Params {
         }
     }
 }
+
+#[derive(Clone)]
+pub struct TopicMeta {
+    pub id: usize,
+    pub title: String,
+    pub description: String,
+    pub categories: Vec<Category>,
+    pub tags: Vec<String>,
+    pub post_ids: Vec<usize>,
+}

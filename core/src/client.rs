@@ -50,6 +50,7 @@ fn generate_client_id(app_id: &Uuid) -> String {
     client_id.to_string()
 }
 
+/// Generate the OAuth URL from given app ID and public key.
 #[must_use]
 pub fn oauth_url(app_id: &Uuid, key: &RsaPublicKey) -> String {
     let query = &[
@@ -57,12 +58,21 @@ pub fn oauth_url(app_id: &Uuid, key: &RsaPublicKey) -> String {
         ("client_id", &generate_client_id(app_id)),
         ("scopes", "session_info,read"),
         ("nonce", "1"),
-        ("public_key", &key.to_pkcs1_pem(Default::default()).unwrap()),
+        (
+            "public_key",
+            &key.to_pkcs1_pem(Default::default())
+                .expect("failed to encode key"),
+        ),
     ];
     let parsed_query = serde_urlencoded::to_string(query).expect("failed to encode query");
     format!("https://shuiyuan.sjtu.edu.cn/user-api-key/new?{parsed_query}")
 }
 
+/// Unpack the OAuth token from the given payload.
+///
+/// # Errors
+///
+/// This function will return an error if the payload is invalid.
 pub fn token_from_payload(payload: &str, key: &RsaPrivateKey) -> Result<String> {
     let ciphertext = BASE64_STANDARD.decode(payload.replace(' ', "").trim())?;
 
@@ -185,6 +195,13 @@ impl Deref for Client {
 }
 
 impl Client {
+    /// Send a request and return the json response.
+    ///
+    /// This method applies rate limiting and connection limiting, and retries on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request failed after retrying.
     pub async fn send_json<T: DeserializeOwned + Send>(
         &self,
         req: impl IntoRequestBuilderWrapped,
@@ -199,10 +216,17 @@ impl Client {
         })
         .await
     }
+    /// Execute given function with given request.
+    ///
+    /// This method applies rate limiting and connection limiting, and retries on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request failed after retrying.
     pub async fn with<F, Fut, T>(&self, req: impl IntoRequestBuilderWrapped, f: F) -> Result<T>
     where
-        F: Fn(RequestBuilder) -> Fut + Clone,
-        Fut: Future<Output = Result<T>>,
+        F: Fn(RequestBuilder) -> Fut + Clone + Send + Sync,
+        Fut: Future<Output = Result<T>> + Send,
     {
         let RequestBuilderWrapped {
             req,
@@ -242,6 +266,11 @@ impl Client {
     }
 }
 
+/// Create a client with given token.
+///
+/// # Errors
+///
+/// Errors if an http client can't be created, or the token is illegal.
 pub async fn create_client_with_token(
     token: &str,
     rate_limit_callback: impl 'static + Fn(u64) + Send + Sync,
@@ -258,9 +287,6 @@ pub async fn create_client_with_token(
         .build()?;
 
     let client = ClientBuilderWithMiddleware::new(client)
-        // .with(MaxConnMiddleware::new(MAX_CONN))
-        // .with(ThrottleMiddleware::new(100))
-        // .with(RetryTransientMiddleware::new_with_policy(DEFAULT_BACKOFF))
         .with(RetryMiddleware::new(rate_limit_callback))
         .build();
 
@@ -276,7 +302,7 @@ pub async fn create_client_with_token(
         bucket: Arc::new(
             RateLimiter::builder()
                 .interval(Duration::from_millis(200))
-                .max(4)
+                .max(MAX_THROTTLE_WEIGHT)
                 .build(),
         ),
     })
