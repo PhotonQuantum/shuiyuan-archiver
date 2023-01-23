@@ -1,47 +1,48 @@
-use tokio::sync::watch::{channel, Receiver, Sender};
-use tracing::error;
+use std::borrow::Borrow;
+
+use futures::{future, FutureExt, SinkExt};
+use tap::TapFallible;
+use tokio::sync::oneshot;
+use tracing::{error, warn};
 
 pub struct Swear<T> {
-    tx: Sender<Option<T>>,
-    fulfilled: bool,
+    tx: Option<oneshot::Sender<T>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct SharedPromise<T>(Receiver<Option<T>>);
+pub struct SharedPromise<T: Clone>(future::Shared<oneshot::Receiver<T>>);
 
-pub fn shared_promise_pair<T>() -> (Swear<T>, SharedPromise<T>) {
-    let (tx, rx) = channel(None);
-    (Swear::new(tx), SharedPromise(rx))
+pub fn shared_promise_pair<T: Clone>() -> (Swear<T>, SharedPromise<T>) {
+    let (tx, rx) = oneshot::channel();
+    (Swear::new(tx), SharedPromise(rx.shared()))
 }
 
 impl<T> Swear<T> {
-    fn new(tx: Sender<Option<T>>) -> Self {
-        Self {
-            tx,
-            fulfilled: false,
-        }
+    fn new(tx: oneshot::Sender<T>) -> Self {
+        Self { tx: Some(tx) }
     }
     pub fn fulfill(mut self, value: T) {
-        self.tx.send_replace(Some(value));
-        self.fulfilled = true;
+        drop(
+            self.tx
+                .take()
+                .expect("fulfilled only once")
+                .send(value)
+                .tap_err(|e| warn!("Nobody's listening on promise")),
+        );
     }
 }
 
 impl<T> Drop for Swear<T> {
     fn drop(&mut self) {
-        if !self.fulfilled {
+        if self.tx.is_some() {
             error!("Unfulfilled promise");
         }
     }
 }
 
 impl<T: Clone + Send + Sync> SharedPromise<T> {
-    pub fn is_forgot(&self) -> bool {
-        self.0.has_changed().is_err()
-    }
     pub async fn recv(mut self) -> Option<T> {
-        drop(self.0.changed().await);
-        self.0.borrow().as_ref().cloned()
+        self.0.await.ok()
     }
 }
 
