@@ -11,8 +11,10 @@ use std::str::FromStr;
 use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
+use serde_json::json;
 use tauri::Wry;
 use tokio::sync::mpsc::channel;
+use tracing_subscriber::EnvFilter;
 
 use sa_core::archiver;
 use sa_core::archiver::DownloadEvent;
@@ -91,49 +93,59 @@ async fn archive(
     window: tauri::Window<Wry>,
     saved_folder: tauri::State<'_, Mutex<Option<PathBuf>>>,
 ) -> Result<(), String> {
-    match create_client_with_token(&token, |_| ()).await {
+    let rate_limit_callback = {
+        let window = window.clone();
+        move |t| {
+            window.emit("rate-limit-event", t).unwrap();
+        }
+    };
+    match create_client_with_token(&token, rate_limit_callback).await {
         Ok(client) => {
             let path = PathBuf::from(save_at);
             *saved_folder.lock().unwrap() = Some(path.clone());
             let (tx, mut rx) = channel(8);
             tokio::spawn(async move {
-                let (
-                    mut chunks_total,
-                    mut chunks_downloaded,
-                    mut assets_downloaded,
-                    mut assets_total,
-                ) = (0, 0, 0, 0);
                 while let Some(ev) = rx.recv().await {
                     match ev {
                         DownloadEvent::FetchingMeta => {
-                            println!("Fetching Metadata");
+                            window
+                                .emit("progress-event", json!({"kind": "fetch-meta"}))
+                                .unwrap();
                         }
                         DownloadEvent::PostChunksTotal(n) => {
-                            chunks_total = n;
+                            window
+                                .emit(
+                                    "progress-event",
+                                    json!({"kind": "chunks-total", "value": n}),
+                                )
+                                .unwrap();
                         }
                         DownloadEvent::PostChunksDownloadedInc => {
-                            chunks_downloaded += 1;
-                            println!("Chunks: {}/{}", chunks_downloaded, chunks_total);
+                            window
+                                .emit("progress-event", json!({"kind": "chunks-inc"}))
+                                .unwrap();
                         }
                         DownloadEvent::ResourceTotalInc => {
-                            assets_total += 1;
-                            println!("Assets: {}/{}", assets_downloaded, assets_total);
+                            window
+                                .emit("progress-event", json!({"kind": "resources-total-inc"}))
+                                .unwrap();
                         }
                         DownloadEvent::ResourceDownloadedInc => {
-                            assets_downloaded += 1;
-                            println!("Assets: {}/{}", assets_downloaded, assets_total);
+                            window
+                                .emit("progress-event", json!({"kind": "resources-inc"}))
+                                .unwrap();
                         }
                     }
                 }
             });
             if let Err(e) = archiver::archive(&client, topic, &path, mask_user, tx).await {
-                sentry::capture_error(&*e);
+                sentry::capture_error(&e);
                 return Err(e.to_string());
             }
             Ok(())
         }
         Err(e) => {
-            sentry::capture_error(&*e);
+            sentry::capture_error(&e);
             Err(e.to_string())
         }
     }
@@ -170,6 +182,9 @@ fn main() {
             },
         ))
     });
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
 
     let store = Store::new().expect("failed to initialize store");
     let key = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();

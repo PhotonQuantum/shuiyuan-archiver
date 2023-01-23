@@ -49,3 +49,37 @@ export const tokenState = atom({
         }
     ]
 });
+
+let rateLimitInterval: number | undefined = undefined;
+export const rateLimitState = atom({
+    key: "rateLimit",
+    default: 0,
+    effects: [
+        ({setSelf, onSet}) => {
+            onSet((newValue, oldValue, isReset) => {
+                console.log("rateLimitState", newValue, oldValue, isReset);
+                if (isReset) {
+                    setSelf(0);
+                    clearInterval(rateLimitInterval)
+                    return;
+                }
+                if (newValue > oldValue) {
+                    clearInterval(rateLimitInterval);
+                    console.log("rateLimitState", "start interval", newValue);
+                    setSelf(newValue);
+
+                    let i = 1;
+                    rateLimitInterval = setInterval(() => {
+                        console.log("rateLimitState", "interval", newValue - i);
+                        setSelf(newValue - i);
+                        if (newValue - i <= 0) {
+                            clearInterval(rateLimitInterval);
+                        } else {
+                            i++;
+                        }
+                    }, 1000);
+                }
+            });
+        }
+    ]
+})
