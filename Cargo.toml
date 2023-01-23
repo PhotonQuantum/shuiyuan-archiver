@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "gui/src-tauri"]
+members = ["core", "cli", "gui/src-tauri"]
 
 [profile.release]
 strip = true
