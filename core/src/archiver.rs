@@ -5,7 +5,7 @@ use std::fmt::Display;
 use std::fs;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
-use std::io::{BufWriter, Cursor};
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -529,16 +529,7 @@ impl DownloadManager {
         let save_path = self.save_to.join(&relative_path);
 
         let swear_or_promise = match self.downloaded_avatars.lock().unwrap().entry(from.clone()) {
-            Entry::Occupied(mut e) => {
-                let existing = e.get();
-                if existing.is_forgot() {
-                    let (swear, promise) = shared_promise_pair();
-                    e.insert(promise);
-                    Ok(swear)
-                } else {
-                    Err(existing.clone())
-                }
-            }
+            Entry::Occupied(mut e) => Err(e.get().clone()),
             Entry::Vacant(e) => {
                 let (swear, promise) = shared_promise_pair();
                 e.insert(promise);
