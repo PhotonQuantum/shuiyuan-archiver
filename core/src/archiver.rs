@@ -5,9 +5,9 @@ use std::fmt::Display;
 use std::fs;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
-use std::io::{Cursor, Write};
+use std::io::{BufWriter, Cursor};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Local, Utc};
 use fake::faker::name::en::Name;
@@ -19,13 +19,19 @@ use html2text::render::text_renderer::TrivialDecorator;
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use reqwest::header::CONTENT_TYPE;
-use reqwest_middleware::ClientWithMiddleware as Client;
 use sanitize_filename::sanitize;
+use scopeguard::ScopeGuard;
+use tap::{Pipe, TapFallible};
 use tokio::sync::mpsc::Sender;
-use tokio::task::spawn_blocking;
+use tokio::sync::{Barrier, Semaphore};
+use tracing::{error, warn};
 
 use crate::action_code::ACTION_CODE_MAP;
-use crate::error::{BoxedError, Result};
+use crate::client::{
+    Client, IntoRequestBuilderWrapped, RequestBuilderExt, ResponseExt, MAX_CONN,
+    MAX_THROTTLE_WEIGHT,
+};
+use crate::error::{Error, Result};
 use crate::models::{
     Category, Params, Post, RespCategory, RespCooked, RespPost, RespPosts, RespRetort, RespTopic,
     Topic,
@@ -43,6 +49,8 @@ const MIN_UNICODE_NAME_LENGTH: usize = 2;
 
 const FETCH_PAGE_SIZE: usize = 400;
 const EXPORT_PAGE_SIZE: usize = 20;
+
+const OPEN_FILES_LIMIT: usize = 128;
 
 static RE_MENTION: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"<a class="mention" href="/u/.*">@(.*)</a>"#).unwrap());
@@ -189,6 +197,12 @@ async fn fetch_avatar(download_manager: &DownloadManager, resp_post: &RespPost) 
     download_manager
         .download_avatar(avatar_url, &avatar_filename)
         .await
+        .tap_err(|e| {
+            error!(
+                "Failed to download avatar for post {}: {:?}",
+                resp_post.id, e
+            )
+        })
 }
 
 fn likes_of_resp_post(resp_post: &RespPost) -> usize {
@@ -215,13 +229,15 @@ async fn fetch_emoji_from_retort(
     let filename = if let Some(emoji_path) = preloaded_store.custom_emoji(&r.emoji) {
         let filename = emoji_path.rsplit('/').next().unwrap();
         download_manager
-            .download_asset(emoji_path.to_string(), filename)
+            .download_asset(emoji_path.to_string(), filename, false)
             .await?;
         filename.to_string()
     } else {
         let filename = format!("{}.png", r.emoji);
         let url = format!("/images/emoji/google/{}.png", normalize_emoji(&r.emoji));
-        download_manager.download_asset(url, &filename).await?;
+        download_manager
+            .download_asset(url, &filename, false)
+            .await?;
         filename
     };
     let count = r.usernames.len();
@@ -284,24 +300,33 @@ async fn fetch_resp_posts(
     let topic_id = topic_meta.id;
     let posts_total = topic_meta.post_ids.len();
     let chunks_total = ceil_div(posts_total, FETCH_PAGE_SIZE);
-    println!(
-        "posts_total/fetch_page_size = {}/{} = {}",
-        posts_total, FETCH_PAGE_SIZE, chunks_total
-    );
     reporter
         .send(DownloadEvent::PostChunksTotal(chunks_total))
         .await?;
 
+    let barrier = Arc::new(Barrier::new(chunks_total));
     let futs: FuturesOrdered<_> = topic_meta
         .post_ids
         .chunks(FETCH_PAGE_SIZE)
         .map(move |post_ids| {
             let reporter = reporter.clone();
+            let barrier = barrier.clone();
 
             let url = format!("https://shuiyuan.sjtu.edu.cn/t/{topic_id}/posts.json");
             let query: Vec<_> = post_ids.iter().map(|i| ("post_ids[]", i)).collect();
+            let req = client
+                .get(url)
+                .query(&query)
+                .with_conn_weight(MAX_CONN as u32)
+                .with_throttle_weight(MAX_THROTTLE_WEIGHT);
             async move {
-                let resp: RespPosts = client.get(url).query(&query).send().await?.json().await?;
+                let resp: RespPosts = client.send_json(req).await?;
+
+                reporter
+                    .send(DownloadEvent::PostChunksDownloadedInc)
+                    .await?;
+                // Continue only after all posts ids are fetched
+                drop(barrier.wait().await);
 
                 let futs: FuturesOrdered<_> = resp
                     .post_stream
@@ -318,11 +343,7 @@ async fn fetch_resp_posts(
                     })
                     .collect();
                 let posts: Vec<Post> = futs.try_collect().await?;
-
-                reporter
-                    .send(DownloadEvent::PostChunksDownloadedInc)
-                    .await?;
-                Ok::<_, BoxedError>(posts)
+                Ok::<_, Error>(posts)
             }
         })
         .collect();
@@ -351,7 +372,15 @@ async fn fetch_assets_by_cooked(
 
     let futs: FuturesUnordered<_> = asset_urls
         .into_iter()
-        .map(|(url, name)| async move { download_manager.download_asset(url, &name).await })
+        .map(|(url, name)| async move {
+            // TODO merge this with the one in extract_asset_url
+            let bypass_limit = ["avi", "mp4", "mov"]
+                .into_iter()
+                .all(|ext| !url.to_lowercase().ends_with(ext));
+            download_manager
+                .download_asset(url, &name, bypass_limit)
+                .await
+        })
         .collect();
     futs.try_collect().await?;
 
@@ -425,6 +454,7 @@ struct DownloadManager {
     downloaded_avatars: Mutex<HashMap<String, SharedPromise<PathBuf>>>,
     save_to: PathBuf,
     reporter: Sender<DownloadEvent>,
+    open_files_sem: Arc<Semaphore>,
 }
 
 impl DownloadManager {
@@ -435,25 +465,58 @@ impl DownloadManager {
             downloaded_assets: Mutex::new(HashSet::new()),
             downloaded_avatars: Mutex::new(HashMap::new()),
             reporter,
+            open_files_sem: Arc::new(Semaphore::new(OPEN_FILES_LIMIT)),
         }
     }
 }
 
 impl DownloadManager {
-    async fn download_asset(&self, from: String, filename: &str) -> Result<()> {
+    // TODO opt out throttle and max_conn
+    async fn download_asset(&self, from: String, filename: &str, bypass_limit: bool) -> Result<()> {
         if !self.downloaded_assets.lock().unwrap().insert(from.clone()) {
             return Ok(());
         }
 
         self.reporter.send(DownloadEvent::ResourceTotalInc).await?;
 
-        let url = format!("https://shuiyuan.sjtu.edu.cn{from}");
-        let resp = self.client.get(url).send().await?.bytes().await?;
-
         let save_path = self.save_to.join("resources").join(filename);
-        let mut to = File::create(save_path)?;
 
-        spawn_blocking(move || to.write_all(&resp)).await??;
+        let req = self
+            .client
+            .get(format!("https://shuiyuan.sjtu.edu.cn{from}"))
+            .into_request_builder_wrapped()
+            .pipe(|req| {
+                if bypass_limit {
+                    req.bypass_max_conn().bypass_throttle()
+                } else {
+                    req
+                }
+            });
+        self.client
+            .with(req, move |req| {
+                let save_path = save_path.clone();
+                let open_files_sem = self.open_files_sem.clone();
+                async move {
+                    let resp = req.send().await?;
+
+                    let delete_guard =
+                        scopeguard::guard((), |_| {
+                            drop(fs::remove_file(&save_path).tap_err(|e| {
+                                warn!(?save_path, ?e, "Failed to remove file on error")
+                            }));
+                        });
+                    let _guard = open_files_sem.acquire().await.expect("semaphore closed");
+                    let mut file = File::create(&save_path)
+                        .tap_err(|e| error!(?save_path, ?e, "[download_asset] file_create"))?;
+
+                    resp.bytes_to_writer(&mut file)
+                        .await
+                        .tap_err(|e| error!(?save_path, ?e, "[download_asset] file_write"))?;
+                    ScopeGuard::into_inner(delete_guard); // defuse
+                    Ok(())
+                }
+            })
+            .await?;
 
         self.reporter
             .send(DownloadEvent::ResourceDownloadedInc)
@@ -461,42 +524,90 @@ impl DownloadManager {
         Ok(())
     }
     async fn download_avatar(&self, from: String, filename: &str) -> Result<PathBuf> {
-        let mut filename = PathBuf::from(filename);
+        let filename = PathBuf::from(filename);
         let relative_path = PathBuf::from("resources").join(&filename);
-        let mut save_path = self.save_to.join(&relative_path);
+        let save_path = self.save_to.join(&relative_path);
 
-        let (swear, promise) = shared_promise_pair();
-        let promise = match self.downloaded_avatars.lock().unwrap().entry(from.clone()) {
-            Entry::Occupied(promise) => Some(promise.get().clone()),
+        let swear_or_promise = match self.downloaded_avatars.lock().unwrap().entry(from.clone()) {
+            Entry::Occupied(mut e) => {
+                let existing = e.get();
+                if existing.is_forgot() {
+                    let (swear, promise) = shared_promise_pair();
+                    e.insert(promise);
+                    Ok(swear)
+                } else {
+                    Err(existing.clone())
+                }
+            }
             Entry::Vacant(e) => {
+                let (swear, promise) = shared_promise_pair();
                 e.insert(promise);
-                None
+                Ok(swear)
             }
         };
-        if let Some(promise) = promise {
-            return Ok(promise.recv().await);
+
+        match swear_or_promise {
+            Ok(swear) => {
+                self.reporter.send(DownloadEvent::ResourceTotalInc).await?;
+
+                let url = format!("https://shuiyuan.sjtu.edu.cn{from}");
+                let req = self.client.get(url);
+                self.client
+                    .with(req, move |req| {
+                        let mut save_path = save_path.clone();
+                        let mut filename = filename.clone();
+                        let open_files_sem = self.open_files_sem.clone();
+                        async move {
+                            let resp = req.send().await?;
+                            let content_type = resp.headers().get(CONTENT_TYPE).unwrap().clone();
+
+                            if content_type.to_str().unwrap().contains("svg") {
+                                save_path.set_extension("svg");
+                                filename.set_extension("svg");
+                            }
+
+                            let _guard = open_files_sem.acquire().await.expect("semaphore closed");
+                            let delete_guard = scopeguard::guard((), |_| {
+                                drop(fs::remove_file(&save_path).tap_err(|e| {
+                                    warn!(
+                                        "Failed to remove file on error ({}): {:?}",
+                                        save_path.display(),
+                                        e
+                                    )
+                                }));
+                            });
+                            let mut file = File::create(&save_path).tap_err(|e| {
+                                error!(
+                                    "[download_asset] file_create({}): {:?}",
+                                    save_path.display(),
+                                    e
+                                )
+                            })?;
+
+                            resp.bytes_to_writer(&mut file)
+                                .await
+                                .tap_err(|e| error!("[download_asset] file_write: {:?}", e))?;
+                            ScopeGuard::into_inner(delete_guard); // defuse
+                            Ok(())
+                        }
+                    })
+                    .await?;
+
+                swear.fulfill(relative_path.clone());
+
+                self.reporter
+                    .send(DownloadEvent::ResourceDownloadedInc)
+                    .await?;
+                Ok(relative_path)
+            }
+            Err(promise) => Ok(match promise.recv().await {
+                None => {
+                    warn!("Promise not fulfilled which indicates an error in another task.");
+                    PathBuf::new() // error in another task will be collected so what is returned here doesn't matter
+                }
+                Some(p) => p,
+            }),
         }
-
-        self.reporter.send(DownloadEvent::ResourceTotalInc).await?;
-
-        let url = format!("https://shuiyuan.sjtu.edu.cn{from}");
-        let resp = self.client.get(url).send().await?;
-        let content_type = resp.headers().get(CONTENT_TYPE).unwrap();
-        if content_type.to_str().unwrap().contains("svg") {
-            save_path.set_extension("svg");
-            filename.set_extension("svg");
-        }
-        let bytes = resp.bytes().await?;
-
-        let mut file = File::create(&save_path)?;
-
-        spawn_blocking(move || file.write_all(&bytes)).await??;
-        swear.fulfill(relative_path.clone());
-
-        self.reporter
-            .send(DownloadEvent::ResourceDownloadedInc)
-            .await?;
-        Ok(relative_path)
     }
 }
 
@@ -513,7 +624,7 @@ struct TopicMeta {
 /// Fetch topic meta data.
 async fn fetch_topic_meta(client: &Client, topic_id: usize) -> Result<TopicMeta> {
     let url = format!("https://shuiyuan.sjtu.edu.cn/t/{topic_id}.json");
-    let resp: RespTopic = client.get(url).send().await?.json().await?;
+    let resp: RespTopic = client.send_json(client.get(url)).await?;
 
     let first_post = resp.post_stream.posts.first().expect("at least one post");
     let description = summarize(&first_post.cooked);
@@ -532,7 +643,7 @@ async fn fetch_topic_meta(client: &Client, topic_id: usize) -> Result<TopicMeta>
 async fn categories_from_id(client: &Client, leaf_id: usize) -> Result<Vec<Category>> {
     stream::try_unfold(leaf_id, |id| async move {
         let url = format!("https://shuiyuan.sjtu.edu.cn/c/{id}/show.json");
-        let resp: RespCategory = client.get(url).send().await?.json().await?;
+        let resp: RespCategory = client.send_json(client.get(url)).await?;
 
         let yielded = resp.category.inner;
         let next = resp.category.parent_category_id;
@@ -555,7 +666,7 @@ async fn cook_special_post(client: &Client, post: RespPost) -> Result<RespPost> 
         })
     } else if post.cooked_hidden {
         let url = format!("https://shuiyuan.sjtu.edu.cn/posts/{}/cooked.json", post.id);
-        let resp: RespCooked = client.get(url).send().await?.json().await?;
+        let resp: RespCooked = client.send_json(client.get(url)).await?;
         Ok(RespPost {
             cooked: format!(r#"<p style="color: gray">被折叠的内容</p>{}"#, resp.cooked),
             ..post
