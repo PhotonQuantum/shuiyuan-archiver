@@ -1,7 +1,7 @@
 use futures::{future, FutureExt};
 use tap::TapFallible;
 use tokio::sync::oneshot;
-use tracing::{error, warn};
+use tracing::warn;
 
 pub struct Swear<T> {
     tx: Option<oneshot::Sender<T>>,
@@ -33,7 +33,7 @@ impl<T> Swear<T> {
 impl<T> Drop for Swear<T> {
     fn drop(&mut self) {
         if self.tx.is_some() {
-            error!("Unfulfilled promise");
+            warn!("Unfulfilled promise");
         }
     }
 }

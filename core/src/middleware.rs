@@ -47,8 +47,7 @@ where
             let result = next.clone().run(duplicate_request, extensions).await;
             break match result {
                 Ok(payload) if payload.status() == StatusCode::TOO_MANY_REQUESTS => {
-                    // TODO debug code
-                    warn!("TOO MANY REQUESTS: {}", payload.url());
+                    warn!(url=?payload.url(), "TOO MANY REQUESTS");
                     let retry_after =
                         payload
                             .headers()

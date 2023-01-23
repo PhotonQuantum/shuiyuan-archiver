@@ -9,15 +9,14 @@ repository = "https://github.com/PhotonQuantum/shuiyuan-archiver"
 
 [dependencies]
 directories = "4.0"
-rand = "0.8"
-sentry = "0.29"
-tauri = { version = "1.0", features = ["dialog"] }
-tokio = { version = "1.17", features = ["rt", "sync", "time", "macros"] }
-webbrowser = "0.8"
-serde_json = "1.0"
-sa_core = { path = "../../core" }
 once_cell = "1.17"
-tracing-subscriber = { version = "0.3", features= ["env-filter"] }
+rand = "0.8"
+sa_core = { path = "../../core" }
+sentry = "0.29"
+serde_json = "1.0"
+tauri = { version = "1.0", features = ["dialog"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+webbrowser = "0.8"
 
 [build-dependencies]
 tauri-build = { version = "1.0", features = [] }
