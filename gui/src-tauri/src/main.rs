@@ -12,8 +12,8 @@ use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
 use serde_json::json;
+use tauri::async_runtime::channel;
 use tauri::Wry;
-use tokio::sync::mpsc::channel;
 use tracing_subscriber::EnvFilter;
 
 use sa_core::archiver;
@@ -104,7 +104,7 @@ async fn archive(
             let path = PathBuf::from(save_at);
             *saved_folder.lock().unwrap() = Some(path.clone());
             let (tx, mut rx) = channel(8);
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 while let Some(ev) = rx.recv().await {
                     match ev {
                         DownloadEvent::FetchingMeta => {

@@ -91,29 +91,30 @@ pub struct Actions {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Topic {
+pub struct Topic<'a> {
     pub id: usize,
     pub title: String,
-    pub description: Option<String>,
+    pub description: String,
     pub categories: Vec<Category>,
     pub tags: Vec<String>,
-    pub posts: Vec<Post>,
-    pub page: Option<usize>,
+    pub posts: &'a [Post],
+    pub page: usize,
     pub total_pages: usize,
-    pub prev_page: Option<String>, // can be "index"
+    pub prev_page: Option<String>,
+    // can be "index"
     pub next_page: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Params {
+pub struct Params<'a> {
     #[serde(flatten)]
-    pub topic: Topic,
+    pub topic: Topic<'a>,
     pub app_version: String,
     pub year: i32,
 }
 
-impl From<Topic> for Params {
-    fn from(t: Topic) -> Self {
+impl<'a> From<Topic<'a>> for Params<'a> {
+    fn from(t: Topic<'a>) -> Self {
         Self {
             topic: t,
             app_version: env!("CARGO_PKG_VERSION").to_string(),

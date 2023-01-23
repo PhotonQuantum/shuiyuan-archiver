@@ -111,25 +111,24 @@ pub async fn archive(
         .chunks(EXPORT_PAGE_SIZE)
         .enumerate()
         .try_for_each(move |(page, group)| {
-            // TODO remove to_vec
-            write_page(topic_meta.clone(), page + 1, group.to_vec(), &save_to)
+            write_page(topic_meta.clone(), page + 1, group, &save_to)
         })?;
 
     Ok(())
 }
 
-fn write_page(meta: TopicMeta, page: usize, posts: Vec<Post>, save_to: &Path) -> Result<()> {
+fn write_page(meta: TopicMeta, page: usize, posts: &[Post], save_to: &Path) -> Result<()> {
     let post_count = meta.post_ids.len();
     let total_pages = utils::ceil_div(post_count, EXPORT_PAGE_SIZE);
     let last_page = page == total_pages;
     let topic = Topic {
         id: meta.id,
         title: meta.title,
-        description: Some(meta.description), // TODO no some
+        description: meta.description,
         categories: meta.categories,
         tags: meta.tags,
         posts,
-        page: Some(page), // TODO no Some
+        page,
         total_pages,
         prev_page: match page {
             1 => None,

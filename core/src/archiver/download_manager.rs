@@ -7,7 +7,7 @@ use reqwest::header::CONTENT_TYPE;
 use tap::{Pipe, TapFallible, TapOptional};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Semaphore;
-use tracing::{error, warn};
+use tracing::warn;
 
 use crate::archiver::DownloadEvent;
 use crate::atomic_file::AtomicFile;
@@ -74,11 +74,11 @@ impl DownloadManager {
 
                     let _guard = open_files_sem.acquire().await.expect("semaphore closed");
                     let file = AtomicFile::new(&save_path).tap_err(|e| {
-                        error!(?save_path, ?e, "[download_asset] atomic_file_create");
+                        warn!(?save_path, ?e, "[download_asset] atomic_file_create");
                     })?;
 
                     resp.bytes_to_atomic_file(file).await.tap_err(|e| {
-                        error!(?save_path, ?e, "[download_asset] atomic_file_write");
+                        warn!(?save_path, ?e, "[download_asset] atomic_file_write");
                     })?;
                     Ok(())
                 }
@@ -127,11 +127,11 @@ impl DownloadManager {
 
                             let _guard = open_files_sem.acquire().await.expect("semaphore closed");
                             let file = AtomicFile::new(&save_path).tap_err(|e| {
-                                error!(?save_path, ?e, "[download_avatar] atomic_file_create");
+                                warn!(?save_path, ?e, "[download_avatar] atomic_file_create");
                             })?;
 
                             resp.bytes_to_atomic_file(file).await.tap_err(|e| {
-                                error!(?save_path, ?e, "[download_avatar] atomic_file_write");
+                                warn!(?save_path, ?e, "[download_avatar] atomic_file_write");
                             })?;
                             Ok(())
                         }

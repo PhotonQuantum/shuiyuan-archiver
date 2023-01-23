@@ -21,7 +21,6 @@ use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use tokio::sync::Semaphore;
-use tracing::info;
 use uuid::Uuid;
 
 use crate::atomic_file::AtomicFile;
