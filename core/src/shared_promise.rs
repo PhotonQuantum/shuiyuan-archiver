@@ -1,6 +1,4 @@
-use std::borrow::Borrow;
-
-use futures::{future, FutureExt, SinkExt};
+use futures::{future, FutureExt};
 use tap::TapFallible;
 use tokio::sync::oneshot;
 use tracing::{error, warn};
@@ -27,7 +25,7 @@ impl<T> Swear<T> {
                 .take()
                 .expect("fulfilled only once")
                 .send(value)
-                .tap_err(|e| warn!("Nobody's listening on promise")),
+                .tap_err(|_e| warn!("Nobody's listening on promise")),
         );
     }
 }
@@ -41,7 +39,7 @@ impl<T> Drop for Swear<T> {
 }
 
 impl<T: Clone + Send + Sync> SharedPromise<T> {
-    pub async fn recv(mut self) -> Option<T> {
+    pub async fn recv(self) -> Option<T> {
         self.0.await.ok()
     }
 }
