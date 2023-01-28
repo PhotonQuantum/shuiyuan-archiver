@@ -31,8 +31,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         if: matrix.platform != 'macos-latest'
       - uses: Swatinem/rust-cache@v2
-        with:
-          working-directory: src-tauri
       - name: Install Dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-20.04'
         run: |
@@ -41,7 +39,6 @@ jobs:
             build-essential \
             curl \
             wget \
-            libssl-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
