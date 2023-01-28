@@ -54,6 +54,8 @@ jobs:
         if: matrix.cross
         uses: taiki-e/install-action@cross
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: shuiyuan-archiver-cli

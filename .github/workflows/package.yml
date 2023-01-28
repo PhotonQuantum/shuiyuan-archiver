@@ -31,6 +31,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         if: matrix.platform != 'macos-latest'
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform }}
       - name: Install Dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-20.04'
         run: |
