@@ -340,27 +340,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "console",
- "dialoguer",
- "indicatif",
- "once_cell",
- "rand 0.8.5",
- "regex",
- "sa_core",
- "sanitize-filename",
- "tap",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "webbrowser",
-]
-
-[[package]]
 name = "cocoa"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3480,6 +3459,27 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-store",
  "tokio",
+ "tracing-subscriber",
+ "webbrowser",
+]
+
+[[package]]
+name = "shuiyuan-archiver-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "console",
+ "dialoguer",
+ "indicatif",
+ "once_cell",
+ "rand 0.8.5",
+ "regex",
+ "sa_core",
+ "sanitize-filename",
+ "tap",
+ "tokio",
+ "tracing",
  "tracing-subscriber",
  "webbrowser",
 ]
