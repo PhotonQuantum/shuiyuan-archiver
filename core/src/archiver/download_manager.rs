@@ -11,7 +11,10 @@ use tracing::warn;
 
 use crate::archiver::DownloadEvent;
 use crate::atomic_file::AtomicFile;
-use crate::client::{Client, IntoRequestBuilderWrapped, RequestBuilderExt, ResponseExt};
+use crate::client::{
+    with_timeout, Client, IntoRequestBuilderWrapped, RequestBuilderExt, ResponseExt,
+    MAX_STREAM_STUCK_TIME,
+};
 use crate::error;
 use crate::shared_promise::{shared_promise_pair, SharedPromise};
 
@@ -70,7 +73,7 @@ impl DownloadManager {
                 let save_path = save_path.clone();
                 let open_files_sem = self.open_files_sem.clone();
                 async move {
-                    let resp = req.send().await?;
+                    let resp = with_timeout(req.send(), MAX_STREAM_STUCK_TIME).await?;
 
                     let _guard = open_files_sem.acquire().await.expect("semaphore closed");
                     let file = AtomicFile::new(&save_path).tap_err(|e| {
@@ -117,7 +120,7 @@ impl DownloadManager {
                         let mut filename = filename.clone();
                         let open_files_sem = self.open_files_sem.clone();
                         async move {
-                            let resp = req.send().await?;
+                            let resp = with_timeout(req.send(), MAX_STREAM_STUCK_TIME).await?;
                             let content_type = resp.headers().get(CONTENT_TYPE).unwrap().clone();
 
                             if content_type.to_str().unwrap().contains("svg") {

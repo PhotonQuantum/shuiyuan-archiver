@@ -30,6 +30,7 @@ use crate::middleware::{BypassThrottle, RetryMiddleware};
 pub const MAX_CONN: usize = 4;
 pub const LOOSE_MAX_CONN: usize = 64;
 pub const MAX_THROTTLE_WEIGHT: usize = 4;
+pub const MAX_STREAM_STUCK_TIME: Duration = Duration::from_secs(10);
 
 const DEFAULT_BACKOFF: ExponentialBackoff = ExponentialBackoff {
     max_n_retries: 3,
@@ -209,7 +210,7 @@ impl Client {
     ) -> Result<T> {
         self.with(req, |req| async move {
             Ok(req
-                .timeout(Duration::from_secs(10))
+                .timeout(MAX_STREAM_STUCK_TIME)
                 .send()
                 .await?
                 .json()
@@ -307,6 +308,22 @@ pub async fn create_client_with_token(
                 .build(),
         ),
     })
+}
+
+/// Add timeout to a try future.
+///
+/// # Errors
+///
+/// Returns `Error::StreamStuck` if the future times out.
+pub async fn with_timeout<Fut, T, E>(fut: Fut, dur: Duration) -> Result<T>
+where
+    Fut: Future<Output = Result<T, E>> + Send,
+    E: Into<Error>,
+{
+    tokio::time::timeout(dur, fut)
+        .await
+        .map(|r| r.map_err(Into::into))
+        .unwrap_or(Err(Error::StreamStuck))
 }
 
 #[async_trait::async_trait]
