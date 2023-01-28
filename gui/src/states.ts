@@ -1,19 +1,15 @@
 import {atom} from "recoil";
-import {invoke} from "@tauri-apps/api";
-
-export const topicState = atom({
-    key: "topicState",
-    default: 0,
-});
+import {Store} from "tauri-plugin-store-api";
+import {TopicMeta} from "./bindings";
 
 export const maskUserState = atom({
-    key: "maskUserState",
-    default: false,
+  key: "maskUserState",
+  default: false,
 });
 
-export const saveAtState = atom({
-    key: "saveAtState",
-    default: "",
+export const saveToState = atom({
+  key: "saveToState",
+  default: "",
 });
 
 export const currentStep = atom({
@@ -29,21 +25,24 @@ export const archiveResultState = atom({
     },
 });
 
+const store = new Store("settings");
 export const tokenState = atom({
-    key: "token",
-    default: "",
-    effects: [
-        ({setSelf, onSet}) => {
-            invoke("get_token")
-                .then(token => {
-                    setSelf(token as string);
-                })
+  key: "token",
+  default: "",
+  effects: [
+    ({setSelf, onSet}) => {
+      store.get("token")
+        .then(token => {
+          setSelf(token as string);
+        })
 
-            onSet((newValue, _, isReset) => {
+      onSet((newValue, _, isReset) => {
                 if (isReset || newValue === '') {
-                    invoke("del_token")
+                  store.delete("token").then(_ => {
+                  });
                 } else {
-                    invoke("set_token", {token: newValue})
+                  store.set("token", newValue).then(_ => {
+                  });
                 }
             })
         }
@@ -73,13 +72,18 @@ export const rateLimitState = atom({
                         console.log("rateLimitState", "interval", newValue - i);
                         setSelf(newValue - i);
                         if (newValue - i <= 0) {
-                            clearInterval(rateLimitInterval);
+                          clearInterval(rateLimitInterval);
                         } else {
-                            i++;
+                          i++;
                         }
                     }, 1000);
                 }
             });
         }
     ]
+})
+
+export const topicMetaState = atom<TopicMeta | null>({
+  key: "topicMeta",
+  default: null
 })

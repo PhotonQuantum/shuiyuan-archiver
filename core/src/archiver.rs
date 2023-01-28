@@ -9,15 +9,19 @@ use futures::stream::FuturesOrdered;
 use futures::TryStreamExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use sanitize_filename::sanitize;
+use serde::Serialize;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Barrier;
+use typeshare::typeshare;
+
+pub use fetchers::fetch_topic_meta;
 
 use crate::archiver::download_manager::DownloadManager;
 use crate::archiver::template::HANDLEBARS;
 use crate::client::{Client, RequestBuilderExt, MAX_CONN, MAX_THROTTLE_WEIGHT};
 use crate::error::{Error, Result};
-use crate::models::{Params, Post, RespPost, RespPosts, Topic, TopicMeta};
+pub use crate::models::{Category, TopicMeta};
+use crate::models::{Params, Post, RespPost, RespPosts, Topic};
 use crate::preloaded_store::PreloadedStore;
 
 mod anonymous;
@@ -30,12 +34,12 @@ const FETCH_PAGE_SIZE: usize = 400;
 const EXPORT_PAGE_SIZE: usize = 20;
 
 /// Download events.
-#[derive(Debug, Copy, Clone)]
+#[typeshare]
+#[derive(Debug, Copy, Clone, Serialize)]
+#[serde(tag = "kind", content = "value", rename_all = "kebab-case")]
 pub enum DownloadEvent {
-    /// Fetching topic metadata.
-    FetchingMeta,
     /// Total post chunks to download. It's determined once metadata is fetched.
-    PostChunksTotal(usize),
+    PostChunksTotal(u32),
     /// A post chunk is downloaded.
     PostChunksDownloadedInc,
     /// A new resource has been discovered. Total count of resources to download is not known
@@ -59,29 +63,21 @@ pub enum DownloadEvent {
 /// There are many possible errors. See the `Error` enum for details.
 pub async fn archive(
     client: &Client,
-    topic_id: usize,
-    save_to_base: &Path,
+    topic_meta: TopicMeta,
+    save_to: &Path,
     anonymous: bool,
     reporter: Sender<DownloadEvent>,
 ) -> Result<()> {
     // Fetch preload emojis.
     let preloaded_store = PreloadedStore::from_client(client).await?;
 
-    // 1. Fetch topic metadata and create directories.
-    reporter.send(DownloadEvent::FetchingMeta).await?;
-    let topic_meta = fetchers::fetch_topic_meta(client, topic_id).await?;
-
-    let filename = sanitize(format!(
-        "水源_{}_{}",
-        &topic_meta.title,
-        utils::get_current_time()
-    ));
-    let save_to = save_to_base.join(filename);
+    // 1. Create directories and extract resources.
     fs::create_dir_all(save_to.join("resources"))?;
     template::extract_resources(save_to.join("resources"))?;
 
     // 2. Fetch all posts and download assets.
-    let download_manager = DownloadManager::new(client.clone(), save_to.clone(), reporter.clone());
+    let download_manager =
+        DownloadManager::new(client.clone(), save_to.to_path_buf(), reporter.clone());
     let mut posts = archive_resp_posts(
         client,
         &download_manager,
@@ -111,7 +107,7 @@ pub async fn archive(
         .chunks(EXPORT_PAGE_SIZE)
         .enumerate()
         .try_for_each(move |(page, group)| {
-            write_page(topic_meta.clone(), page + 1, group, &save_to)
+            write_page(topic_meta.clone(), page + 1, group, save_to)
         })?;
 
     Ok(())
@@ -159,7 +155,7 @@ async fn archive_resp_posts(
     let posts_total = topic_meta.post_ids.len();
     let chunks_total = utils::ceil_div(posts_total, FETCH_PAGE_SIZE);
     reporter
-        .send(DownloadEvent::PostChunksTotal(chunks_total))
+        .send(DownloadEvent::PostChunksTotal(chunks_total as u32))
         .await?;
 
     let barrier = Arc::new(Barrier::new(chunks_total));

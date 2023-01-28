@@ -2,34 +2,21 @@ import {Alert, Center, Group, Loader, Stack, Text, useMantineTheme} from "@manti
 import {appWindow} from "@tauri-apps/api/window";
 import {useRecoilState, useRecoilValue, useSetRecoilState} from "recoil";
 import {useEffect, useState} from "react";
-import {invoke} from "@tauri-apps/api";
-import {
-    archiveResultState,
-    currentStep,
-    maskUserState,
-    rateLimitState,
-    saveAtState,
-    tokenState,
-    topicState
-} from "../states";
+import {archiveResultState, currentStep, maskUserState, rateLimitState, saveToState, topicMetaState} from "../states";
 import {UnlistenFn} from "@tauri-apps/api/event";
 import {AlertCircle, Check, Clock, CloudDownload} from "tabler-icons-react";
+import {DownloadEvent} from "../bindings";
+import {archive} from "../commands";
 
 type UnlistenStruct = {
     unsubscribe: UnlistenFn;
 }
 
-type ProgressEvent = {
-    kind: string,
-    value?: number
-}
-
 export const Archive = () => {
     const theme = useMantineTheme();
 
-    const token = useRecoilValue(tokenState);
-    const topic = useRecoilValue(topicState);
-    const saveAt = useRecoilValue(saveAtState);
+    const topicMeta = useRecoilValue(topicMetaState);
+    const saveTo = useRecoilValue(saveToState);
     const maskUser = useRecoilValue(maskUserState);
     const setArchiveResult = useSetRecoilState(archiveResultState);
     const setStep = useSetRecoilState(currentStep);
@@ -45,16 +32,16 @@ export const Archive = () => {
     const [channelProgress, setChannelProgress] = useState<UnlistenStruct | null>(null);
 
     useEffect(() => {
-        invoke("archive", {token, topic, saveAt, maskUser})
-            .then(() => {
-                setArchiveResult({success: true, message: ""});
-                setStep(3);
-            })
-            .catch(resp => {
-                setArchiveResult({success: false, message: resp as string});
-                setStep(3);
-            })
-    }, [topic, saveAt, maskUser]);
+        archive(topicMeta!, saveTo, maskUser)
+          .then(() => {
+              setArchiveResult({success: true, message: ""});
+              setStep(3);
+          })
+          .catch(resp => {
+              setArchiveResult({success: false, message: resp as string});
+              setStep(3);
+          })
+    }, [topicMeta, saveTo, maskUser]);
 
     useEffect(() => {
         appWindow.listen<number>("rate-limit-event", (rateLimit) => {
@@ -65,19 +52,17 @@ export const Archive = () => {
         }).catch(e => {
             console.error(e);
         });
-        appWindow.listen<ProgressEvent>("progress-event", (progress) => {
+        appWindow.listen<DownloadEvent>("progress-event", (progress) => {
             const payload = progress.payload;
-            if (payload.kind === "fetch-meta") {
-                setFetchMeta(true);
-            } else if (payload.kind === "chunks-total") {
+            if (payload.kind === "post-chunks-total") {
                 setFetchMeta(false);
                 setPageTotal(payload.value!);
-            } else if (payload.kind === "chunks-inc") {
+            } else if (payload.kind === "post-chunks-downloaded-inc") {
                 setPageDownloaded((v) => v + 1);
-            } else if (payload.kind === "resources-total-inc") {
-                setResourcesTotal((v) => v + 1);
-            } else if (payload.kind === "resources-inc") {
+            } else if (payload.kind === "resource-downloaded-inc") {
                 setResourcesDownloaded((v) => v + 1);
+            } else if (payload.kind === "resource-total-inc") {
+                setResourcesTotal((v) => v + 1);
             }
         }).then(unsubscribe => {
             setChannelProgress({unsubscribe});

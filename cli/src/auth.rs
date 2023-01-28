@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use console::style;
+use dialoguer::theme::ColorfulTheme;
 use dialoguer::Input;
 use tracing::warn;
 
@@ -13,13 +14,13 @@ pub fn auth(no_open: bool) -> Result<()> {
         rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).expect("generate rsa private key");
     let url = oauth_url(&APP_ID, &key);
     if !no_open && webbrowser::open(&url).is_ok() {
-        println!("A browser window should have been opened.\n\
+        eprintln!("A browser window should have been opened.\n\
             Please log in and authorize the app. Then copy the authenticate key from the website and paste it here.");
     } else {
-        println!("Please open the following URL in a browser and log in to authorize the app. Then copy the authenticate key from the website and paste it here.");
-        println!("{url}");
+        eprintln!("Please open the following URL in a browser and log in to authorize the app. Then copy the authenticate key from the website and paste it here.");
+        eprintln!("{url}");
     }
-    let payload: String = Input::new()
+    let payload: String = Input::with_theme(&ColorfulTheme::default())
         .with_prompt(format!(
             "{} {}",
             style("?").green().bold(),
@@ -29,8 +30,8 @@ pub fn auth(no_open: bool) -> Result<()> {
         .unwrap();
     match token_from_payload(&payload, &key) {
         Ok(token) => {
-            println!("\nUse the following token to authenticate in the future.");
-            println!("{} {token}", style("Token:").bold());
+            eprintln!("\nUse the following token to authenticate in the future.");
+            eprintln!("{} {token}", style("Token:").bold());
             Ok(())
         }
         Err(e) => {

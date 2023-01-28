@@ -2,7 +2,7 @@ import {useRecoilState, useSetRecoilState} from "recoil";
 import {currentStep, tokenState} from "../states";
 import {Button, Center, Group, Loader, Space, Stack, Text, Textarea} from "@mantine/core";
 import {useEffect, useState} from "react";
-import {invoke} from "@tauri-apps/api";
+import {loginWithToken, openBrowser, tokenFromOauth} from "../commands";
 
 export const Login = () => {
     const [loading, setLoading] = useState(false);
@@ -15,21 +15,20 @@ export const Login = () => {
 
     const validateToken = async (token: string) => {
         setLoading(true);
-        const valid = await invoke("validate_token", {token}) as boolean;
-        if (valid) {
+        try {
+            await loginWithToken(token);
             setCurrentStep(1);
-        } else {
+        } catch (e) {
             setToken('');
         }
         setLoading(false);
     }
 
     const loginWithOAuthKey = async () => {
-        const token = await invoke("token_from_oauth", {oauthKey: OAuthKey.replaceAll("\n", "")}) as string;
+        const token = await tokenFromOauth(OAuthKey.replaceAll("\n", ""));
         if (token !== '') {
             setToken(token);
         } else {
-            console.log("key error");
             setKeyError("无效的授权码");
         }
     }
@@ -42,15 +41,18 @@ export const Login = () => {
     }, [token]);
 
     return (
-        <>{loading ? <Center pt={130}>
+      <>{loading ?
+        <Center pt={130}>
             <Group>
                 <Loader/>
                 <Text>正在登录...</Text>
             </Group>
-        </Center> : (!opened ? <Stack pt={70}>
+        </Center> :
+        (!opened ?
+            <Stack pt={70}>
                 <Text align={"center"}>为了存档水源贴子，我们需要您水源账号的只读权限</Text>
                 <Button onClick={() => {
-                    invoke("open_browser").then(() => {
+                    openBrowser().then(() => {
                         setOpened(true);
                     });
                 }}>授权</Button>
@@ -63,7 +65,8 @@ export const Login = () => {
                 />
                 <Space/>
                 <Button disabled={!enabled} onClick={() => {
-                    loginWithOAuthKey().then(_ => {})
+                    loginWithOAuthKey().then(_ => {
+                    })
                 }}>登录</Button>
             </Stack>
         )}</>

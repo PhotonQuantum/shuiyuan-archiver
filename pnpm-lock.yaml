@@ -3,29 +3,37 @@ lockfileVersion: 5.4
 specifiers:
   '@mantine/core': ^5.10.1
   '@mantine/hooks': ^5.10.1
+  '@mantine/modals': ^5.10.2
   '@tauri-apps/api': ^1.2.0
   '@tauri-apps/cli': ^1.2.3
   '@tauri-apps/tauricon': github:tauri-apps/tauricon
+  '@types/debounce-promise': ^3.1.6
   '@types/react': ^18.0.27
   '@types/react-dom': ^18.0.10
+  debounce-promise: ^3.1.2
   parcel: ^2.8.3
   react: ^18.2.0
   react-dom: ^18.2.0
   recoil: ^0.7.6
   tabler-icons-react: ^1.56.0
+  tauri-plugin-store-api: github:tauri-apps/tauri-plugin-store
 
 dependencies:
   '@mantine/core': 5.10.1_pl7c6tg3txk3em5brrn6d2cdkm
   '@mantine/hooks': 5.10.1_react@18.2.0
+  '@mantine/modals': 5.10.2_ynz4r3bmi75slbqnmaycv7w7wa
   '@tauri-apps/api': 1.2.0
+  debounce-promise: 3.1.2
   react: 18.2.0
   react-dom: 18.2.0_react@18.2.0
   recoil: 0.7.6_biqbaboplfbrettd7655fr4n2y
   tabler-icons-react: 1.56.0_react@18.2.0
+  tauri-plugin-store-api: github.com/tauri-apps/tauri-plugin-store/c71665bf5dcf48ae70a88d622eb38b2548b60a5d
 
 devDependencies:
   '@tauri-apps/cli': 1.2.3
   '@tauri-apps/tauricon': github.com/tauri-apps/tauricon/5eea916a4a8e13aa41a943beaa7b4b71977e190d
+  '@types/debounce-promise': 3.1.6
   '@types/react': 18.0.27
   '@types/react-dom': 18.0.10
   parcel: 2.8.3
@@ -899,6 +907,21 @@ packages:
       react: 18.2.0
     dev: false
 
+  /@mantine/modals/5.10.2_ynz4r3bmi75slbqnmaycv7w7wa:
+    resolution: {integrity: sha512-hKd9UqHd2m+Qn5+5yMJmiFeykR+rdVlD3j9MxfjStu//NCCRSrnbj+3kgpyKn6zvZy8UV3Erg7wDzP56PgjldQ==}
+    peerDependencies:
+      '@mantine/core': 5.10.2
+      '@mantine/hooks': 5.10.2
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+    dependencies:
+      '@mantine/core': 5.10.1_pl7c6tg3txk3em5brrn6d2cdkm
+      '@mantine/hooks': 5.10.1_react@18.2.0
+      '@mantine/utils': 5.10.2_react@18.2.0
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+    dev: false
+
   /@mantine/styles/5.10.1_sogmqz4enknxtkxk3k5s6bqwnq:
     resolution: {integrity: sha512-sKJG+shOJMEYlnpLuRd1Qlu0kK9GHpYd85+q+3Wa5/IZ9jLkOeYVxLV1vnhSnhVrIxbQzrti2klSKHZBg3KpIw==}
     peerDependencies:
@@ -915,6 +938,14 @@ packages:
 
   /@mantine/utils/5.10.1_react@18.2.0:
     resolution: {integrity: sha512-PfzSpbipAwF5g5zoyC2Htxf2b9TFFwP6c9dK1jlrBzqtkeQK1axZ72Vbc1jKjGWYutVBbOWuk40GKUwYoDFVTw==}
+    peerDependencies:
+      react: '>=16.8.0'
+    dependencies:
+      react: 18.2.0
+    dev: false
+
+  /@mantine/utils/5.10.2_react@18.2.0:
+    resolution: {integrity: sha512-mpXTPG9X2nPfHGg3ejcWkSlYVxuiTx6RxWbbFHEk/U2fSikEAQdMNdVPaKI2c0/S2jksqJXlODZJv2Qt9HAFMQ==}
     peerDependencies:
       react: '>=16.8.0'
     dependencies:
@@ -1937,6 +1968,10 @@ packages:
       '@types/responselike': 1.0.0
     dev: true
 
+  /@types/debounce-promise/3.1.6:
+    resolution: {integrity: sha512-DowqK95aku+OxMCeG2EQSeXeGeE8OCwLpMsUfIbP7hMF8Otj8eQXnzpwdtIKV+UqQBtkMcF6vbi4Otbh8P/wmg==}
+    dev: true
+
   /@types/http-cache-semantics/4.0.1:
     resolution: {integrity: sha512-SZs7ekbP8CN0txVG2xVRH6EgKmEm31BOxA07vkFaETzZz1xh+cbt8BcI0slpymvwhx5dlFnQG2rTlPVQn+iRPQ==}
     dev: true
@@ -2610,6 +2645,10 @@ packages:
     dependencies:
       array-find-index: 1.0.2
     dev: true
+
+  /debounce-promise/3.1.2:
+    resolution: {integrity: sha512-rZHcgBkbYavBeD9ej6sP56XfG53d51CD4dnaw989YX/nZ/ZJfgRx/9ePKmTNiUiyQvh4mtrMoS3OAWW+yoYtpg==}
+    dev: false
 
   /debug/4.3.4:
     resolution: {integrity: sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==}
@@ -5831,6 +5870,14 @@ packages:
       bin-wrapper: 4.1.0
       logalot: 2.1.0
     dev: true
+
+  github.com/tauri-apps/tauri-plugin-store/c71665bf5dcf48ae70a88d622eb38b2548b60a5d:
+    resolution: {tarball: https://codeload.github.com/tauri-apps/tauri-plugin-store/tar.gz/c71665bf5dcf48ae70a88d622eb38b2548b60a5d}
+    name: tauri-plugin-store-api
+    version: 0.0.0
+    dependencies:
+      '@tauri-apps/api': 1.2.0
+    dev: false
 
   github.com/tauri-apps/tauricon/5eea916a4a8e13aa41a943beaa7b4b71977e190d:
     resolution: {tarball: https://codeload.github.com/tauri-apps/tauricon/tar.gz/5eea916a4a8e13aa41a943beaa7b4b71977e190d}
