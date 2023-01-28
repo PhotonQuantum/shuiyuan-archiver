@@ -19,7 +19,7 @@ leaky-bucket = "0.12"
 mac_address = "1.1"
 once_cell = "1.10"
 regex = "1.5"
-reqwest = { version = "0.11", features = ["multipart", "json", "cookies", "stream"] }
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls-webpki-roots", "multipart", "json", "cookies", "stream"] }
 reqwest-middleware = "0.2"
 reqwest-retry = "0.2"
 retry-policies = "0.1"
