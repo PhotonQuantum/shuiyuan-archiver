@@ -1,6 +1,7 @@
 use std::io;
 
 use futures_retry_policies::ShouldRetry;
+use reqwest::StatusCode;
 use tempfile::PersistError;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -36,13 +37,30 @@ pub enum Error {
     AtomicFileWrite(#[from] PersistError),
 }
 
+fn classify_reqwest_error(e: &reqwest::Error) -> bool {
+    e.is_timeout()
+        || e.is_connect()
+        || e.is_request()
+        || e.status()
+            .map(|status| {
+                status.is_server_error()
+                    || !status.is_client_error()
+                    || status == StatusCode::REQUEST_TIMEOUT
+                    || status == StatusCode::TOO_MANY_REQUESTS
+            })
+            .unwrap_or_default()
+}
+
 impl ShouldRetry for Error {
     fn should_retry(&self, attempts: u32) -> bool {
-        let retry = matches!(
-            self,
-            Self::Reqwest(_) | Self::ReqwestMiddleware(_) | Self::IO(_) | Self::StreamStuck
-        );
-        warn!(attempts, retry, e=?self, "Error occurred, retrying");
+        let retry = match self {
+            Self::ReqwestMiddleware(reqwest_middleware::Error::Reqwest(e)) | Self::Reqwest(e) => {
+                classify_reqwest_error(e)
+            }
+            Self::IO(_) | Self::StreamStuck => true,
+            _ => false,
+        };
+        warn!(attempts, retry, e=?self, "ShouldRetry: Error occurred");
         retry
     }
 }
