@@ -1,0 +1,62 @@
+on:
+  push:
+    tags:
+      - 'shuiyuan-archiver-cli/v*'
+
+permissions:
+  contents: write
+
+name: Publish (CLI)
+
+jobs:
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          prefix: 'shuiyuan-archiver-cli/'
+          draft: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish_cli:
+    name: Publish (CLI)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-20.04
+            cross: false
+          - target: universal-apple-darwin
+            os: macos-latest
+            cross: false
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            cross: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - name: Setup Cargo Toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Cross Toolchain
+        if: matrix.cross
+        uses: taiki-e/install-action@cross
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: shuiyuan-archiver-cli
+          target: ${{ matrix.target }}
+          checksum: sha512
+          token: ${{ secrets.GITHUB_TOKEN }}
