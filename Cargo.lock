@@ -352,6 +352,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "sa_core",
+ "sanitize-filename",
  "tap",
  "tokio",
  "tracing",
@@ -2246,6 +2247,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f61fba1741ea2b3d6a1e3178721804bb716a68a6aeba1149b5d52e3d464ea66"
 
 [[package]]
+name = "open"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2078c0039e6a54a0c42c28faa984e115fb4c2d5bf2208f77d1961002df8576f8"
+dependencies = [
+ "pathdiff",
+ "windows-sys",
+]
+
+[[package]]
 name = "openssl"
 version = "0.10.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2366,6 +2377,12 @@ name = "paste"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d01a5bd0424d00070b0098dd17ebca6f961a959dead1dbcbbbc1d1cd8d3deeba"
+
+[[package]]
+name = "pathdiff"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
 
 [[package]]
 name = "pem-rfc7468"
@@ -3072,7 +3089,6 @@ dependencies = [
  "reqwest-retry",
  "retry-policies",
  "rsa",
- "sanitize-filename",
  "scraper",
  "serde",
  "serde_json",
@@ -3085,6 +3101,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+ "typeshare",
  "uuid 1.2.2",
 ]
 
@@ -3458,9 +3475,11 @@ dependencies = [
  "rand 0.8.5",
  "sa_core",
  "sentry",
- "serde_json",
+ "tap",
  "tauri",
  "tauri-build",
+ "tauri-plugin-store",
+ "tokio",
  "tracing-subscriber",
  "webbrowser",
 ]
@@ -3733,9 +3752,11 @@ dependencies = [
  "ignore",
  "objc",
  "once_cell",
+ "open",
  "percent-encoding",
  "rand 0.8.5",
  "raw-window-handle",
+ "regex",
  "rfd",
  "semver 1.0.16",
  "serde",
@@ -3788,6 +3809,7 @@ dependencies = [
  "png",
  "proc-macro2",
  "quote",
+ "regex",
  "semver 1.0.16",
  "serde",
  "serde_json",
@@ -3811,6 +3833,18 @@ dependencies = [
  "syn",
  "tauri-codegen",
  "tauri-utils",
+]
+
+[[package]]
+name = "tauri-plugin-store"
+version = "0.1.0"
+source = "git+https://github.com/tauri-apps/plugins-workspace?branch=dev#ba81e865b2169a3c9c17477db27b3bd3d554e4b6"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror",
 ]
 
 [[package]]
@@ -4165,6 +4199,28 @@ name = "typenum"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
+
+[[package]]
+name = "typeshare"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7f096d7253207ace684191e2c22d6480345975c15bbccd7c14d5de713f08bd6"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "typeshare-annotation",
+]
+
+[[package]]
+name = "typeshare-annotation"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "389b0235d70d7c762268e3b693e5efbe0879b036de868a39188309e2ced169ec"
+dependencies = [
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "ucd-trie"

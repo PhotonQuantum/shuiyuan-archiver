@@ -98,7 +98,11 @@ pub async fn fetch_assets_of_content(
 }
 
 /// Fetch topic meta data.
-pub async fn fetch_topic_meta(client: &Client, topic_id: usize) -> error::Result<TopicMeta> {
+///
+/// # Errors
+///
+/// Returns error if failed to fetch topic meta or failed to fetch category names.
+pub async fn fetch_topic_meta(client: &Client, topic_id: u32) -> error::Result<TopicMeta> {
     let url = format!("https://shuiyuan.sjtu.edu.cn/t/{topic_id}.json");
     let resp: RespTopic = client.send_json(client.get(url)).await?;
 

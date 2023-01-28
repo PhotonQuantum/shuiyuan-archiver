@@ -57,36 +57,38 @@ impl DownloadManager {
 
         let save_path = self.save_to.join("resources").join(filename);
 
-        let req = self
-            .client
-            .get(format!("https://shuiyuan.sjtu.edu.cn{from}"))
-            .into_request_builder_wrapped()
-            .pipe(|req| {
-                if bypass_limit {
-                    req.bypass_max_conn().bypass_throttle()
-                } else {
-                    req
-                }
-            });
-        self.client
-            .with(req, move |req| {
-                let save_path = save_path.clone();
-                let open_files_sem = self.open_files_sem.clone();
-                async move {
-                    let resp = with_timeout(req.send(), MAX_STREAM_STUCK_TIME).await?;
+        if !save_path.exists() {
+            let req = self
+                .client
+                .get(format!("https://shuiyuan.sjtu.edu.cn{from}"))
+                .into_request_builder_wrapped()
+                .pipe(|req| {
+                    if bypass_limit {
+                        req.bypass_max_conn().bypass_throttle()
+                    } else {
+                        req
+                    }
+                });
+            self.client
+                .with(req, move |req| {
+                    let save_path = save_path.clone();
+                    let open_files_sem = self.open_files_sem.clone();
+                    async move {
+                        let resp = with_timeout(req.send(), MAX_STREAM_STUCK_TIME).await?;
 
-                    let _guard = open_files_sem.acquire().await.expect("semaphore closed");
-                    let file = AtomicFile::new(&save_path).tap_err(|e| {
-                        warn!(?save_path, ?e, "[download_asset] atomic_file_create");
-                    })?;
+                        let _guard = open_files_sem.acquire().await.expect("semaphore closed");
+                        let file = AtomicFile::new(&save_path).tap_err(|e| {
+                            warn!(?save_path, ?e, "[download_asset] atomic_file_create");
+                        })?;
 
-                    resp.bytes_to_atomic_file(file).await.tap_err(|e| {
-                        warn!(?save_path, ?e, "[download_asset] atomic_file_write");
-                    })?;
-                    Ok(())
-                }
-            })
-            .await?;
+                        resp.bytes_to_atomic_file(file).await.tap_err(|e| {
+                            warn!(?save_path, ?e, "[download_asset] atomic_file_write");
+                        })?;
+                        Ok(())
+                    }
+                })
+                .await?;
+        }
 
         self.reporter
             .send(DownloadEvent::ResourceDownloadedInc)
@@ -112,34 +114,38 @@ impl DownloadManager {
             Ok(swear) => {
                 self.reporter.send(DownloadEvent::ResourceTotalInc).await?;
 
-                let url = format!("https://shuiyuan.sjtu.edu.cn{from}");
-                let req = self.client.get(url);
-                self.client
-                    .with(req, move |req| {
-                        let mut save_path = save_path.clone();
-                        let mut filename = filename.clone();
-                        let open_files_sem = self.open_files_sem.clone();
-                        async move {
-                            let resp = with_timeout(req.send(), MAX_STREAM_STUCK_TIME).await?;
-                            let content_type = resp.headers().get(CONTENT_TYPE).unwrap().clone();
+                if !save_path.exists() {
+                    let url = format!("https://shuiyuan.sjtu.edu.cn{from}");
+                    let req = self.client.get(url);
+                    self.client
+                        .with(req, move |req| {
+                            let mut save_path = save_path.clone();
+                            let mut filename = filename.clone();
+                            let open_files_sem = self.open_files_sem.clone();
+                            async move {
+                                let resp = with_timeout(req.send(), MAX_STREAM_STUCK_TIME).await?;
+                                let content_type =
+                                    resp.headers().get(CONTENT_TYPE).unwrap().clone();
 
-                            if content_type.to_str().unwrap().contains("svg") {
-                                save_path.set_extension("svg");
-                                filename.set_extension("svg");
+                                if content_type.to_str().unwrap().contains("svg") {
+                                    save_path.set_extension("svg");
+                                    filename.set_extension("svg");
+                                }
+
+                                let _guard =
+                                    open_files_sem.acquire().await.expect("semaphore closed");
+                                let file = AtomicFile::new(&save_path).tap_err(|e| {
+                                    warn!(?save_path, ?e, "[download_avatar] atomic_file_create");
+                                })?;
+
+                                resp.bytes_to_atomic_file(file).await.tap_err(|e| {
+                                    warn!(?save_path, ?e, "[download_avatar] atomic_file_write");
+                                })?;
+                                Ok(())
                             }
-
-                            let _guard = open_files_sem.acquire().await.expect("semaphore closed");
-                            let file = AtomicFile::new(&save_path).tap_err(|e| {
-                                warn!(?save_path, ?e, "[download_avatar] atomic_file_create");
-                            })?;
-
-                            resp.bytes_to_atomic_file(file).await.tap_err(|e| {
-                                warn!(?save_path, ?e, "[download_avatar] atomic_file_write");
-                            })?;
-                            Ok(())
-                        }
-                    })
-                    .await?;
+                        })
+                        .await?;
+                }
 
                 swear.fulfill(relative_path.clone());
 

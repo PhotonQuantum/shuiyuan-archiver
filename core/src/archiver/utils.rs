@@ -24,10 +24,6 @@ pub fn normalize_emoji(emoji: &str) -> impl Display + '_ {
     EMOJI_RE.replace_all(emoji.trim_matches(':'), "$1/$2")
 }
 
-pub fn get_current_time() -> String {
-    Local::now().format("%Y-%m-%d_%H:%M:%S").to_string()
-}
-
 pub fn summarize(content: &str) -> String {
     html2text::parse(content.as_bytes())
         .render(120, TrivialDecorator::new())

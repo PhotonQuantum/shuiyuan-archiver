@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::iter;
 use std::ops::Deref;
@@ -186,6 +186,16 @@ pub struct Client {
     loose_sem: Arc<Semaphore>,
     sem: Arc<Semaphore>,
     bucket: Arc<RateLimiter>,
+}
+
+impl Debug for Client {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("loose_sem", &self.loose_sem)
+            .field("sem", &self.sem)
+            .field("bucket", &"RateLimiter")
+            .finish()
+    }
 }
 
 impl Deref for Client {

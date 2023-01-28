@@ -23,7 +23,7 @@ static APP_ID: Lazy<Uuid> =
 #[tokio::main]
 async fn main() -> ExitCode {
     if let Err(e) = entry().await {
-        println!("{}", style(e).red());
+        eprintln!("{}", style(e).red());
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
@@ -41,9 +41,11 @@ async fn entry() -> Result<()> {
         Commands::Archive(Archive {
             topic_id,
             url,
-            save_at,
+            save_to,
             anonymous,
             token,
+            create_subdir,
+            no_create_subdir,
         }) => {
             static RE_URL: Lazy<Regex> =
                 Lazy::new(|| Regex::new(r#"https://shuiyuan.sjtu.edu.cn/t/topic/(\d+)"#).unwrap());
@@ -58,7 +60,12 @@ async fn entry() -> Result<()> {
             let token = token
                 .or_else(|| std::env::var("SHUIYUAN_TOKEN").ok())
                 .ok_or_else(|| anyhow!("Missing token. Please specify an API token via `token` argument or `SHUIYUAN_TOKEN` environment variable."))?;
-            archive::archive(&token, topic, &save_at, anonymous).await
+
+            let create_subdir = create_subdir
+                .then_some(true)
+                .or_else(|| no_create_subdir.then_some(false));
+
+            archive::archive(&token, topic, &save_to, anonymous, create_subdir).await
         }
     }
 }

@@ -49,7 +49,21 @@
     "updater": {
       "active": false
     },
-    "allowlist": {},
+    "allowlist": {
+      "dialog": {
+        "open": true
+      },
+      "fs": {
+        "readDir": true,
+        "exists": true
+      },
+      "path": {
+        "all": true
+      },
+      "shell": {
+        "open": ".*"
+      }
+    },
     "windows": [
       {
         "title": "水源存档工具",

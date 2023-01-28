@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, Datelike, Local, Utc};
 use serde::{Deserialize, Serialize};
+use typeshare::typeshare;
 
 #[derive(Debug, Deserialize)]
 pub struct RespTopic {
@@ -16,7 +17,7 @@ pub struct RespTopic {
 #[derive(Debug, Deserialize)]
 pub struct PostStream {
     pub posts: Vec<RespPost>,
-    pub stream: Option<Vec<usize>>,
+    pub stream: Option<Vec<u32>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,6 +37,7 @@ pub struct RespCategoryInner {
     pub parent_category_id: Option<usize>,
 }
 
+#[typeshare]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Category {
     pub name: String,
@@ -92,7 +94,7 @@ pub struct Actions {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Topic<'a> {
-    pub id: usize,
+    pub id: u32,
     pub title: String,
     pub description: String,
     pub categories: Vec<Category>,
@@ -123,12 +125,14 @@ impl<'a> From<Topic<'a>> for Params<'a> {
     }
 }
 
-#[derive(Clone)]
+#[typeshare]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct TopicMeta {
-    pub id: usize,
+    pub id: u32,
     pub title: String,
     pub description: String,
     pub categories: Vec<Category>,
     pub tags: Vec<String>,
-    pub post_ids: Vec<usize>,
+    pub post_ids: Vec<u32>,
 }
