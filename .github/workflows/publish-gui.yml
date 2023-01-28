@@ -1,16 +1,16 @@
 on:
   push:
     tags:
-      - 'v*'
+      - 'shuiyuan-archiver/v*'
 
 permissions:
   contents: write
 
-name: Publish
+name: Publish (GUI)
 
 jobs:
-  publish:
-    name: Publish
+  publish_gui:
+    name: Publish (GUI)
     strategy:
       fail-fast: false
       matrix:
@@ -31,8 +31,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         if: matrix.platform != 'macos-latest'
       - uses: Swatinem/rust-cache@v2
-        with:
-          working-directory: src-tauri
       - name: Install Dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-20.04'
         run: |
@@ -66,8 +64,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: 'v__VERSION__'
+          tagName: 'shuiyuan-archiver/v__VERSION__'
+          releaseName: 'shuiyuan-archiver/v__VERSION__'
           releaseBody: ''
           releaseDraft: true
           prerelease: false
