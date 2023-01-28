@@ -15,6 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         name: Checkout 🛎️
+      - uses: dtolnay/rust-toolchain@stable
+        name: Setup Cargo Toolchain 🛎️
+        with:
+          components: rustfmt, clippy
       - name: Install Dependencies
         run: |
           sudo apt-get update
@@ -22,45 +26,35 @@ jobs:
             build-essential \
             curl \
             wget \
-            libssl-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
-      - uses: actions-rs/toolchain@v1
-        name: Setup Cargo Toolchain 🛎️
-        with:
-          components: rustfmt, clippy
-          toolchain: stable
-          default: true
       - uses: Swatinem/rust-cache@v2
-        with:
-          working-directory: src-tauri
       - name: Check Code Format 🔧
-        run: cd src-tauri && cargo fmt -- --check
+        run: cargo fmt -- --check
       - name: Run Clippy Lints 🔨
-        run: mkdir dist && cd src-tauri && cargo clippy --all-targets --all-features --tests
+        run: mkdir dist && cargo clippy --all-targets --all-features --tests
 
-  test:
-    name: Test
+  test_core:
+    name: Test (core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         name: Checkout 🛎️
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev \
-            build-essential \
-            curl \
-            wget \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
       - name: Setup Cargo Toolchain 🛎️
         uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          working-directory: src-tauri
       - name: Running Tests 🚀
-        run: mkdir dist && cd src-tauri && cargo test --workspace
+        run: cargo test --package sa_core
+
+  test_cli:
+    name: Test (cli)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        name: Checkout 🛎️
+      - name: Setup Cargo Toolchain 🛎️
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Running Tests 🚀
+        run: cargo test --package shuiyuan-archiver-cli
