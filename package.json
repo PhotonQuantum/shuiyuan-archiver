@@ -11,21 +11,20 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^1.2.3",
-    "@tauri-apps/tauricon": "github:tauri-apps/tauricon",
     "@types/debounce-promise": "^3.1.6",
-    "@types/react": "^18.0.27",
-    "@types/react-dom": "^18.0.10",
+    "@types/react": "^18.0.28",
+    "@types/react-dom": "^18.0.11",
     "parcel": "^2.8.3"
   },
   "dependencies": {
-    "@mantine/core": "^5.10.1",
-    "@mantine/hooks": "^5.10.1",
-    "@mantine/modals": "^5.10.2",
+    "@mantine/core": "^6.0.2",
+    "@mantine/hooks": "^6.0.2",
+    "@mantine/modals": "^6.0.2",
     "@tauri-apps/api": "^1.2.0",
     "debounce-promise": "^3.1.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recoil": "^0.7.6",
+    "recoil": "^0.7.7",
     "tabler-icons-react": "^1.56.0",
     "tauri-plugin-store-api": "github:tauri-apps/tauri-plugin-store"
   }

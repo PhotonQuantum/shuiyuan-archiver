@@ -28,7 +28,7 @@ pub async fn fetch_avatar(
     let avatar_filename = format!(
         "{}_{}",
         utils::calculate_hash(&avatar_url),
-        avatar_url.split('/').last().unwrap()
+        sanitize_filename::sanitize(avatar_url.split('/').last().unwrap())
     );
 
     download_manager
@@ -43,13 +43,13 @@ pub async fn fetch_emoji_from_retort(
     r: RespRetort,
 ) -> error::Result<(String, usize)> {
     let filename = if let Some(emoji_path) = preloaded_store.custom_emoji(&r.emoji) {
-        let filename = emoji_path.rsplit('/').next().unwrap();
+        let filename = sanitize_filename::sanitize(emoji_path.rsplit('/').next().unwrap());
         download_manager
-            .download_asset(emoji_path.to_string(), filename, false)
+            .download_asset(emoji_path.to_string(), &filename, false)
             .await?;
-        filename.to_string()
+        filename
     } else {
-        let filename = format!("{}.png", r.emoji);
+        let filename = sanitize_filename::sanitize(format!("{}.png", r.emoji));
         let url = format!(
             "/images/emoji/google/{}.png",
             utils::normalize_emoji(&r.emoji)
@@ -69,7 +69,12 @@ pub async fn fetch_assets_of_content(
 ) -> error::Result<String> {
     let asset_urls: Vec<_> = extract_asset_url(content)
         .into_iter()
-        .map(|s| (s.clone(), s.split('/').last().unwrap().to_string()))
+        .map(|s| {
+            (
+                s.clone(),
+                sanitize_filename::sanitize(s.split('/').last().unwrap()),
+            )
+        })
         .collect();
 
     let mut content = content.to_string();
