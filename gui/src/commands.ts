@@ -20,3 +20,7 @@ export const fetchMeta = async (topicId: number) => {
 export const archive = async (topicMeta: TopicMeta, saveTo: string, maskUser: boolean) => {
   await invoke<void>("archive", {topicMeta, saveTo, maskUser});
 }
+
+export const sanitize = async (s: string) => {
+  return await invoke<string>("sanitize", {s});
+}

@@ -30,6 +30,11 @@ static APP_ID: Lazy<Uuid> =
     Lazy::new(|| Uuid::from_str("1bf328bf-239b-46ed-9696-92fdcb51f2b1").unwrap());
 
 #[tauri::command]
+fn sanitize(s: String) -> String {
+    sanitize_filename::sanitize(&s)
+}
+
+#[tauri::command]
 fn open_browser(key: tauri::State<rsa::RsaPrivateKey>) {
     webbrowser::open(&oauth_url(&APP_ID, &key)).expect("no browser");
 }
@@ -127,6 +132,7 @@ fn main() {
         .manage(key)
         .manage(client)
         .invoke_handler(tauri::generate_handler![
+            sanitize,
             login_with_token,
             open_browser,
             token_from_oauth,

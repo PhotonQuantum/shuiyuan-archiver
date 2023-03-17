@@ -1,7 +1,7 @@
 import {Button, Code, Group, Loader, Space, Stack, Switch, Text, TextInput, Tooltip} from "@mantine/core";
 import {atom, useRecoilState, useSetRecoilState} from "recoil";
 import {currentStep, maskUserState, saveToState, topicMetaState} from "../states";
-import {fetchMeta} from "../commands";
+import {fetchMeta, sanitize} from "../commands";
 import debounce from "debounce-promise";
 import {useState} from "react";
 import {openConfirmModal} from "@mantine/modals";
@@ -56,7 +56,7 @@ export const Config = () => {
   const onNextStep = async () => {
     console.log("readDir", await fs.readDir(savePath));
     if (await fs.exists(savePath) && (await fs.readDir(savePath)).length > 0) {
-      const filename = `水源_${topicMeta!.title}`;
+      const filename = await sanitize(`水源_${topicMeta!.title}`);
       const isArchive = (await path.basename(savePath) === filename);
 
       const prompt = prompts[isArchive ? 1 : 0];
@@ -64,6 +64,7 @@ export const Config = () => {
         title: "文件夹不为空",
         children: <Text size="sm">{prompt.desc}</Text>,
         labels: {confirm: prompt.subdir, cancel: prompt.no_subdir},
+        centered: true
       });
       if (create_subdir === null) {
         return
@@ -75,7 +76,8 @@ export const Config = () => {
           const confirm = await asyncConfirm({
             title: "存档已存在",
             children: <Text size={"sm"}>在 <Code>{newPath}</Code> 已存在一个存档</Text>,
-            labels: {confirm: "更新存档", cancel: "取消"}
+            labels: {confirm: "更新存档", cancel: "取消"},
+            centered: true
           });
           if (!confirm) {
             return;
