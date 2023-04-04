@@ -12,7 +12,7 @@ use crate::APP_ID;
 pub fn auth(no_open: bool) -> Result<()> {
     let key =
         rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).expect("generate rsa private key");
-    let url = oauth_url(&APP_ID, &key);
+    let url = oauth_url(&APP_ID, &key, false);
     if !no_open && webbrowser::open(&url).is_ok() {
         eprintln!("A browser window should have been opened.\n\
             Please log in and authorize the app. Then copy the authenticate key from the website and paste it here.");

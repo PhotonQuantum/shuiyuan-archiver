@@ -2,7 +2,7 @@ import {invoke} from "@tauri-apps/api";
 import {TopicMeta} from "./bindings";
 
 export const openBrowser = async () => {
-  await invoke<void>("open_browser");
+  return await invoke<boolean>("open_browser");
 }
 export const tokenFromOauth = async (payload: string) => {
   return await invoke<string>("token_from_oauth", {payload});
@@ -13,7 +13,6 @@ export const loginWithToken = async (token: string) => {
 }
 
 export const fetchMeta = async (topicId: number) => {
-  console.log("on the fly", topicId);
   return await invoke<TopicMeta>("fetch_meta", {topicId});
 }
 

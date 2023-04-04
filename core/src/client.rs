@@ -54,18 +54,21 @@ fn generate_client_id(app_id: &Uuid) -> String {
 
 /// Generate the OAuth URL from given app ID and public key.
 #[must_use]
-pub fn oauth_url(app_id: &Uuid, key: &RsaPublicKey) -> String {
-    let query = &[
+pub fn oauth_url(app_id: &Uuid, key: &RsaPublicKey, callback: bool) -> String {
+    let client_id = generate_client_id(app_id);
+    let pubkey = key
+        .to_pkcs1_pem(Default::default())
+        .expect("failed to encode key");
+    let mut query = vec![
         ("application_name", "Shuiyuan Archiver"),
-        ("client_id", &generate_client_id(app_id)),
+        ("client_id", &client_id),
         ("scopes", "session_info,read"),
         ("nonce", "1"),
-        (
-            "public_key",
-            &key.to_pkcs1_pem(Default::default())
-                .expect("failed to encode key"),
-        ),
+        ("public_key", &pubkey),
     ];
+    if callback {
+        query.push(("auth_redirect", "discourse://auth_redirect"))
+    }
     let parsed_query = serde_urlencoded::to_string(query).expect("failed to encode query");
     format!("https://shuiyuan.sjtu.edu.cn/user-api-key/new?{parsed_query}")
 }

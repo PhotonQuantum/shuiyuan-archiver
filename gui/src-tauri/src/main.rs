@@ -21,6 +21,8 @@ use sa_core::client::{create_client_with_token, oauth_url, token_from_payload, C
 use sa_core::re_exports::rsa;
 use sa_core::re_exports::uuid::Uuid;
 
+use crate::url_scheme::{URLScheme, URLSchemePlugin};
+
 mod url_scheme;
 
 type BoxedError = Box<dyn StdError + Send + Sync>;
@@ -35,8 +37,13 @@ fn sanitize(s: String) -> String {
 }
 
 #[tauri::command]
-fn open_browser(key: tauri::State<rsa::RsaPrivateKey>) {
-    webbrowser::open(&oauth_url(&APP_ID, &key)).expect("no browser");
+fn open_browser(
+    key: tauri::State<rsa::RsaPrivateKey>,
+    url_scheme: tauri::State<URLScheme>,
+) -> bool {
+    let use_callback = dbg!(url_scheme.registered);
+    webbrowser::open(&oauth_url(&APP_ID, &key, use_callback)).expect("no browser");
+    use_callback
 }
 
 #[tauri::command]
@@ -124,11 +131,14 @@ fn main() {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
+    tauri_plugin_deep_link::prepare("me.lightquantum.shuiyuan-archiver");
+
     let key = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
     let client: Mutex<Option<Client>> = Mutex::new(None);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(URLSchemePlugin)
         .manage(key)
         .manage(client)
         .invoke_handler(tauri::generate_handler![

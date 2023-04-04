@@ -3,7 +3,7 @@ import {appWindow} from "@tauri-apps/api/window";
 import {useRecoilState, useRecoilValue, useSetRecoilState} from "recoil";
 import {useEffect, useState} from "react";
 import {archiveResultState, currentStep, maskUserState, rateLimitState, saveToState, topicMetaState} from "../states";
-import {UnlistenFn} from "@tauri-apps/api/event";
+import {listen, UnlistenFn} from "@tauri-apps/api/event";
 import {AlertCircle, Check, Clock, CloudDownload} from "tabler-icons-react";
 import {DownloadEvent} from "../bindings";
 import {archive} from "../commands";
@@ -44,7 +44,7 @@ export const Archive = () => {
     }, [topicMeta, saveTo, maskUser]);
 
     useEffect(() => {
-        appWindow.listen<number>("rate-limit-event", (rateLimit) => {
+        listen<number>("rate-limit-event", (rateLimit) => {
             console.log("rateLimit", rateLimit);
             setRateLimit(rateLimit.payload);
         }).then(unsubscribe => {
