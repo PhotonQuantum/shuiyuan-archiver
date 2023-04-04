@@ -12,14 +12,14 @@
   "devDependencies": {
     "@tauri-apps/cli": "^1.2.3",
     "@types/debounce-promise": "^3.1.6",
-    "@types/react": "^18.0.28",
+    "@types/react": "^18.0.33",
     "@types/react-dom": "^18.0.11",
     "parcel": "^2.8.3"
   },
   "dependencies": {
-    "@mantine/core": "^6.0.2",
-    "@mantine/hooks": "^6.0.2",
-    "@mantine/modals": "^6.0.2",
+    "@mantine/core": "^6.0.6",
+    "@mantine/hooks": "^6.0.6",
+    "@mantine/modals": "^6.0.6",
     "@tauri-apps/api": "^1.2.0",
     "debounce-promise": "^3.1.2",
     "react": "^18.2.0",

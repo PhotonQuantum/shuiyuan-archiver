@@ -37,5 +37,5 @@ thiserror = "1.0"
 tokio = { version = "1.17", features = ["rt", "sync", "time", "macros"] }
 tokio-stream = "0.1"
 tracing = "0.1"
-uuid = { version = "1.2", features = ["v4", "v5"] }
 typeshare = "1.0"
+uuid = { version = "1.2", features = ["v4", "v5"] }
