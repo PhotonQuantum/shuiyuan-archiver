@@ -30,13 +30,13 @@ fn register_deep_link(handle: AppHandle<Wry>) -> bool {
     {
         tauri_plugin_deep_link::register("discourse", move |request| {
             let re = Regex::new(r#"discourse://auth_redirect/?\?payload=(.+)"#).unwrap();
-            re.captures(&request)
-                .map(|m| {
-                    urlencoding::decode(m.get(1).expect("no payload").as_str())
-                        .expect("utf8")
-                        .to_string()
-                })
-                .map(|s| handle.emit_all("update-token", s).unwrap());
+            if let Some(s) = re.captures(&request).map(|m| {
+                urlencoding::decode(m.get(1).expect("no payload").as_str())
+                    .expect("utf8")
+                    .to_string()
+            }) {
+                handle.emit_all("update-token", s).unwrap()
+            }
         })
         .expect("failed to register deep link handler");
         true

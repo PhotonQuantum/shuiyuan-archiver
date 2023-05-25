@@ -67,7 +67,7 @@ pub fn oauth_url(app_id: &Uuid, key: &RsaPublicKey, callback: bool) -> String {
         ("public_key", &pubkey),
     ];
     if callback {
-        query.push(("auth_redirect", "discourse://auth_redirect"))
+        query.push(("auth_redirect", "discourse://auth_redirect"));
     }
     let parsed_query = serde_urlencoded::to_string(query).expect("failed to encode query");
     format!("https://shuiyuan.sjtu.edu.cn/user-api-key/new?{parsed_query}")

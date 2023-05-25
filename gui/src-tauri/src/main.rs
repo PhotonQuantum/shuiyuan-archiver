@@ -33,7 +33,7 @@ static APP_ID: Lazy<Uuid> =
 
 #[tauri::command]
 fn sanitize(s: String) -> String {
-    sanitize_filename::sanitize(&s)
+    sanitize_filename::sanitize(s)
 }
 
 #[tauri::command]
@@ -42,7 +42,7 @@ fn open_browser(
     url_scheme: tauri::State<URLScheme>,
 ) -> bool {
     let use_callback = dbg!(url_scheme.registered);
-    webbrowser::open(&oauth_url(&APP_ID, &key, use_callback)).expect("no browser");
+    webbrowser::open(&oauth_url(&APP_ID, key.as_ref(), use_callback)).expect("no browser");
     use_callback
 }
 
