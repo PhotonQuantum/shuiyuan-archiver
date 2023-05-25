@@ -73,6 +73,22 @@ pub struct RespPost {
     pub retorts: Vec<RespRetort>,
     pub avatar_template: String,
     pub action_code: Option<String>,
+    #[serde(default)]
+    pub polls: Vec<RespPoll>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RespPoll {
+    pub name: String,
+    pub options: Vec<RespPollOption>,
+    pub voters: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RespPollOption {
+    pub id: String,
+    pub html: String,
+    pub votes: usize,
 }
 
 #[derive(Debug, Deserialize)]

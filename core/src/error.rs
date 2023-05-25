@@ -1,6 +1,7 @@
 use std::io;
 
 use futures_retry_policies::ShouldRetry;
+use lol_html::errors::RewritingError;
 use reqwest::StatusCode;
 use tempfile::PersistError;
 use thiserror::Error;
@@ -35,6 +36,8 @@ pub enum Error {
     AtomicFilePoisoned,
     #[error("atomic file write error: {0}")]
     AtomicFileWrite(#[from] PersistError),
+    #[error("rewriting error: {0}")]
+    Rewriting(#[from] RewritingError),
 }
 
 fn classify_reqwest_error(e: &reqwest::Error) -> bool {

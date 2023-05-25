@@ -1,7 +1,10 @@
+use std::iter;
 use std::path::PathBuf;
 
 use futures::stream::FuturesUnordered;
 use futures::{stream, TryStreamExt};
+use lol_html::html_content::ContentType;
+use lol_html::{element, RewriteStrSettings};
 use once_cell::sync::Lazy;
 use scraper::{CaseSensitivity, Selector};
 use tap::TapFallible;
@@ -179,6 +182,46 @@ pub async fn fetch_special_post(client: &Client, post: RespPost) -> error::Resul
     } else {
         Ok(post)
     }
+}
+
+pub fn reify_vote(post: RespPost) -> error::Result<RespPost> {
+    if post.polls.is_empty() {
+        return Ok(post);
+    }
+
+    let rewrites = post.polls.iter().flat_map(|poll| {
+        iter::once(element!(
+            format!(
+                r#"div.poll[data-poll-name="{}"] span.info-number"#,
+                poll.name
+            ),
+            |el| {
+                el.set_inner_content(&poll.voters.to_string(), ContentType::Text);
+                Ok(())
+            }
+        ))
+        .chain(poll.options.iter().map(|option| {
+            element!(
+                format!(
+                    r#"div.poll[data-poll-name="{}"] li[data-poll-option-id="{}"]"#,
+                    poll.name, option.id
+                ),
+                |el| {
+                    el.append(&format!(" - {} 票", option.votes), ContentType::Text);
+                    Ok(())
+                }
+            )
+        }))
+    });
+
+    let cooked = lol_html::rewrite_str(
+        &post.cooked,
+        RewriteStrSettings {
+            element_content_handlers: rewrites.collect(),
+            ..RewriteStrSettings::default()
+        },
+    )?;
+    Ok(RespPost { cooked, ..post })
 }
 
 fn parse_srcset(attr: &str) -> Vec<&str> {
