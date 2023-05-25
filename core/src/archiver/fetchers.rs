@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use futures::stream::FuturesUnordered;
 use futures::{stream, TryStreamExt};
 use once_cell::sync::Lazy;
-use regex::Regex;
+use scraper::{CaseSensitivity, Selector};
 use tap::TapFallible;
 use tracing::error;
 
@@ -45,7 +45,7 @@ pub async fn fetch_emoji_from_retort(
     let filename = if let Some(emoji_path) = preloaded_store.custom_emoji(&r.emoji) {
         let filename = sanitize_filename::sanitize(emoji_path.rsplit('/').next().unwrap());
         download_manager
-            .download_asset(emoji_path.to_string(), &filename, false)
+            .download_asset(absolute_url(emoji_path), &filename, false)
             .await?;
         filename
     } else {
@@ -55,7 +55,7 @@ pub async fn fetch_emoji_from_retort(
             utils::normalize_emoji(&r.emoji)
         );
         download_manager
-            .download_asset(url, &filename, false)
+            .download_asset(absolute_url(&url), &filename, false)
             .await?;
         filename
     };
@@ -63,37 +63,57 @@ pub async fn fetch_emoji_from_retort(
     Ok((filename, count))
 }
 
+fn url_to_filename(url: &str) -> String {
+    let (url, query) = url.split_once('?').unwrap_or((url, ""));
+    let (url, fragment) = url.split_once('#').unwrap_or((url, ""));
+    let filename = url.rsplit_once('/').map_or(url, |(_, filename)| filename);
+    let (basename, ext) = filename.rsplit_once('.').unwrap_or((filename, ""));
+    let mut new_name = basename.to_string();
+    if !query.is_empty() {
+        new_name.push('_');
+        new_name.push_str(query);
+    }
+    if !fragment.is_empty() {
+        new_name.push('_');
+        new_name.push_str(fragment);
+    }
+    if !ext.is_empty() {
+        new_name.push('.');
+        new_name.push_str(ext);
+    }
+    sanitize_filename::sanitize(new_name)
+}
+
+fn absolute_url(url: &str) -> String {
+    if url.starts_with("//") {
+        format!("https:{url}")
+    } else if url.starts_with('/') {
+        format!("https://shuiyuan.sjtu.edu.cn{url}")
+    } else {
+        url.to_string()
+    }
+}
+
 pub async fn fetch_assets_of_content(
     download_manager: &DownloadManager,
     content: &str,
+    anonymous: bool,
 ) -> error::Result<String> {
-    let asset_urls: Vec<_> = extract_asset_url(content)
+    let asset_urls: Vec<_> = extract_asset_url(content, anonymous)
         .into_iter()
-        .map(|s| {
-            (
-                s.clone(),
-                sanitize_filename::sanitize(s.split('/').last().unwrap()),
-            )
-        })
+        .map(|s| (s.clone(), url_to_filename(&s)))
         .collect();
 
     let mut content = content.to_string();
     for (url, name) in &asset_urls {
-        content = content.replace(
-            &format!("https://shuiyuan.sjtu.edu.cn{url}"),
-            &format!("resources/{name}"),
-        );
         content = content.replace(url, &format!("resources/{name}"));
     }
 
     let futs: FuturesUnordered<_> = asset_urls
         .into_iter()
         .map(|(url, name)| async move {
-            let bypass_limit = VIDEO_SUFFIXES
-                .into_iter()
-                .all(|ext| !url.to_lowercase().ends_with(ext));
             download_manager
-                .download_asset(url, &name, bypass_limit)
+                .download_asset(absolute_url(&url), &name, false)
                 .await
         })
         .collect();
@@ -161,29 +181,55 @@ pub async fn fetch_special_post(client: &Client, post: RespPost) -> error::Resul
     }
 }
 
+fn parse_srcset(attr: &str) -> Vec<&str> {
+    attr.split(',')
+        .map(str::trim)
+        .map(|s| s.rsplit_once(' ').map_or(s, |(url, _)| url))
+        .collect()
+}
+
+fn filter_media(url: &str) -> bool {
+    let no_query = url.rsplit_once('?').map_or(url, |(url, _)| url);
+    let no_fragment = no_query.rsplit_once('#').map_or(no_query, |(url, _)| url);
+    let filename = no_fragment
+        .rsplit_once('/')
+        .map_or(no_fragment, |(_, filename)| filename);
+    let ext = filename.rsplit_once('.').map_or(filename, |(_, ext)| ext);
+    VIDEO_SUFFIXES.iter().any(|&s| ext.eq_ignore_ascii_case(s))
+        || IMAGE_SUFFIXES.iter().any(|&s| ext.eq_ignore_ascii_case(s))
+}
+
 #[allow(clippy::to_string_in_format_args)]
-fn extract_asset_url(content: &str) -> Vec<String> {
-    static FULL_URL_RE: Lazy<Regex> = Lazy::new(|| {
-        let image_match = IMAGE_SUFFIXES.join("|");
-        let video_match = VIDEO_SUFFIXES.join("|");
-        Regex::new(&format!(
-            r#"https?://shuiyuan.sjtu.edu.cn([^)'",]+.(?i:{image_match}|{video_match}))"#
-        ))
-        .unwrap()
+fn extract_asset_url(content: &str, anonymous: bool) -> Vec<String> {
+    static A_SELECTOR: Lazy<Selector> = Lazy::new(|| Selector::parse("a").unwrap());
+    static IMG_SELECTOR: Lazy<Selector> = Lazy::new(|| Selector::parse("img").unwrap());
+    static SOURCE_SELECTOR: Lazy<Selector> = Lazy::new(|| Selector::parse("source").unwrap());
+
+    let doc = scraper::Html::parse_document(content);
+
+    let href_urls = doc
+        .select(&A_SELECTOR)
+        .filter_map(|a| a.value().attr("href"));
+    let img_urls = doc.select(&IMG_SELECTOR).flat_map(|img| {
+        let elem = img.value();
+        if anonymous && elem.has_class("avatar", CaseSensitivity::AsciiCaseInsensitive) {
+            return vec![];
+        }
+
+        let mut srcset_imgs = elem.attr("srcset").map_or(vec![], parse_srcset);
+        if let Some(src_img) = elem.attr("src") {
+            srcset_imgs.push(src_img);
+        }
+        srcset_imgs
     });
-    static UPLOAD_URL_RE: Lazy<Regex> = Lazy::new(|| {
-        let image_match = IMAGE_SUFFIXES.join("|");
-        let video_match = VIDEO_SUFFIXES.join("|");
-        Regex::new(&format!(
-            r#"/uploads[^)'",\\]+.(?i:{image_match}|{video_match})"#
-        ))
-        .unwrap()
-    });
-    let full_url_caps = FULL_URL_RE
-        .captures_iter(content)
-        .map(|cap| cap[1].to_string());
-    let upload_url_caps = UPLOAD_URL_RE
-        .captures_iter(content)
-        .map(|cap| cap[0].to_string());
-    full_url_caps.chain(upload_url_caps).collect()
+    let source_urls = doc
+        .select(&SOURCE_SELECTOR)
+        .filter_map(|source| source.value().attr("src"));
+
+    href_urls
+        .chain(img_urls)
+        .chain(source_urls)
+        .filter(|url| filter_media(url))
+        .map(ToString::to_string)
+        .collect()
 }

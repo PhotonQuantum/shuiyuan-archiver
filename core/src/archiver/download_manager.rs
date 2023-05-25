@@ -60,7 +60,7 @@ impl DownloadManager {
         if !save_path.exists() {
             let req = self
                 .client
-                .get(format!("https://shuiyuan.sjtu.edu.cn{from}"))
+                .get(from)
                 .into_request_builder_wrapped()
                 .pipe(|req| {
                     if bypass_limit {

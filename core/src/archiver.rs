@@ -216,7 +216,8 @@ async fn process_resp_post(
     static RE_AVATAR: Lazy<Regex> = Lazy::new(|| Regex::new(r#"<img .* class="avatar">"#).unwrap());
 
     let resp_post = fetchers::fetch_special_post(client, resp_post).await?;
-    let cooked = fetchers::fetch_assets_of_content(download_manager, &resp_post.cooked).await?;
+    let cooked =
+        fetchers::fetch_assets_of_content(download_manager, &resp_post.cooked, anonymous).await?;
     let (cooked, avatar) = if anonymous {
         (RE_AVATAR.replace_all(&cooked, "").to_string(), None)
     } else {
