@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use lol_html::{element, HtmlRewriter, RewriteStrSettings};
 use reqwest_middleware::ClientWithMiddleware;
-use scraper::Selector;
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
 
@@ -22,25 +22,36 @@ pub struct Emoji {
 
 impl PreloadedStore {
     pub async fn from_client(client: &ClientWithMiddleware) -> Result<Self> {
-        let selector = Selector::parse("#data-preloaded").unwrap();
         let body = client
             .get("https://shuiyuan.sjtu.edu.cn")
             .send()
             .await?
             .text()
             .await?;
-        let document = scraper::Html::parse_document(&body);
-        let preloaded = document
-            .select(&selector)
-            .next()
-            .expect("#data-preloaded")
-            .value()
-            .attr("data-preloaded")
-            .expect("data-preloaded");
-        Ok(serde_json::from_str(preloaded)?)
+        let mut preloaded = None;
+        let rule = element!("#data-preloaded", |el| {
+            if preloaded
+                .replace(el.get_attribute("data-preloaded").expect("data-preloaded"))
+                .is_some()
+            {
+                panic!("multiple #data-preloaded")
+            }
+            Ok(())
+        });
+        let _ = HtmlRewriter::new(
+            RewriteStrSettings {
+                element_content_handlers: vec![rule],
+                ..RewriteStrSettings::default()
+            }
+            .into(),
+            |_: &[u8]| (),
+        )
+        .write(body.as_bytes());
+
+        Ok(serde_json::from_str(&preloaded.expect("#data-preloaded"))?)
     }
     pub fn custom_emoji(&self, name: &str) -> Option<&str> {
-        self.custom_emoji.get(name).map(std::string::String::as_str)
+        self.custom_emoji.get(name).map(String::as_str)
     }
 }
 
