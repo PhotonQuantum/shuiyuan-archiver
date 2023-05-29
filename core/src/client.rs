@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use crate::atomic_file::AtomicFile;
 use crate::error::{Error, Result};
-use crate::middleware::{BypassThrottle, RetryMiddleware};
+use crate::middleware::{BypassThrottle, RetryMiddleware, TimeoutMiddleware};
 
 pub const MAX_CONN: usize = 4;
 pub const LOOSE_MAX_CONN: usize = 64;
@@ -303,6 +303,7 @@ pub async fn create_client_with_token(
 
     let client = ClientBuilderWithMiddleware::new(client)
         .with(RetryMiddleware::new(rate_limit_callback))
+        .with(TimeoutMiddleware::new(MAX_STREAM_STUCK_TIME))
         .build();
 
     client

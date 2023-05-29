@@ -1,10 +1,12 @@
 use std::time::{Duration, Instant};
 
 use reqwest::{Request, Response, StatusCode};
-use reqwest_middleware::Result;
+use reqwest_middleware::{Error, Result};
 use reqwest_middleware::{Middleware, Next};
 use task_local_extensions::Extensions;
 use tracing::warn;
+
+use crate::client::with_timeout;
 
 pub struct RetryMiddleware<C> {
     rate_limit_callback: C,
@@ -75,5 +77,28 @@ where
                 _ => result,
             };
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct TimeoutMiddleware(Duration);
+
+impl TimeoutMiddleware {
+    pub const fn new(timeout: Duration) -> Self {
+        Self(timeout)
+    }
+}
+
+#[async_trait::async_trait]
+impl Middleware for TimeoutMiddleware {
+    async fn handle(
+        &self,
+        req: Request,
+        extensions: &mut Extensions,
+        next: Next<'_>,
+    ) -> Result<Response> {
+        with_timeout(next.run(req, extensions), self.0)
+            .await
+            .map_err(Error::middleware)
     }
 }
