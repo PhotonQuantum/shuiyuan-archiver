@@ -48,7 +48,10 @@ impl PreloadedStore {
         )
         .write(body.as_bytes());
 
-        Ok(serde_json::from_str(&preloaded.expect("#data-preloaded"))?)
+        let unescaped =
+            htmlescape::decode_html(&preloaded.expect("#data-preloaded")).expect("unescaped");
+
+        Ok(serde_json::from_str(&unescaped)?)
     }
     pub fn custom_emoji(&self, name: &str) -> Option<&str> {
         self.custom_emoji.get(name).map(String::as_str)
