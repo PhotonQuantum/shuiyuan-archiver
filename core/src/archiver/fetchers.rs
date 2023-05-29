@@ -1,12 +1,11 @@
+use std::cell::RefCell;
 use std::iter;
 use std::path::PathBuf;
 
 use futures::stream::FuturesUnordered;
 use futures::{stream, TryStreamExt};
 use lol_html::html_content::ContentType;
-use lol_html::{element, RewriteStrSettings};
-use once_cell::sync::Lazy;
-use scraper::{CaseSensitivity, Selector};
+use lol_html::{element, rewrite_str, RewriteStrSettings};
 use tap::TapFallible;
 use tracing::error;
 
@@ -102,27 +101,22 @@ pub async fn fetch_assets_of_content(
     content: &str,
     anonymous: bool,
 ) -> error::Result<String> {
-    let asset_urls: Vec<_> = extract_asset_url(content, anonymous)
-        .into_iter()
-        .map(|s| (s.clone(), url_to_filename(&s)))
-        .collect();
+    let ExtractAssetResult {
+        urls,
+        rewritten_content,
+    } = extract_asset_url(content, anonymous);
 
-    let mut content = content.to_string();
-    for (url, name) in &asset_urls {
-        content = content.replace(url, &format!("resources/{name}"));
-    }
-
-    let futs: FuturesUnordered<_> = asset_urls
+    let futs: FuturesUnordered<_> = urls
         .into_iter()
-        .map(|(url, name)| async move {
+        .map(|url| async move {
             download_manager
-                .download_asset(absolute_url(&url), &name, false)
+                .download_asset(absolute_url(&url), &url_to_filename(&url), false)
                 .await
         })
         .collect();
     futs.try_collect().await?;
 
-    Ok(content)
+    Ok(rewritten_content)
 }
 
 /// Fetch topic meta data.
@@ -224,11 +218,24 @@ pub fn reify_vote(post: RespPost) -> error::Result<RespPost> {
     Ok(RespPost { cooked, ..post })
 }
 
-fn parse_srcset(attr: &str) -> Vec<&str> {
+fn rewrite_srcset(attr: &str, mut rewrite: impl FnMut(&str) -> Option<String>) -> Option<String> {
     attr.split(',')
-        .map(str::trim)
-        .map(|s| s.rsplit_once(' ').map_or(s, |(url, _)| url))
-        .collect()
+        .map(|s| {
+            let a = s.chars().take_while(|c| c.is_whitespace()).count();
+            let b = s.chars().rev().take_while(|c| c.is_whitespace()).count();
+            (a, &s[a..s.len() - b], b)
+        })
+        .map(|(a, s, b)| {
+            if let Some((url, scale)) = s.rsplit_once(' ') {
+                rewrite(url).map(|s| format!("{}{} {}{}", " ".repeat(a), s, scale, " ".repeat(b)))
+            } else {
+                rewrite(s).map(|s| format!("{}{}{}", " ".repeat(a), s, " ".repeat(b)))
+            }
+        })
+        .try_fold(String::new(), |mut acc, s| {
+            acc.push_str(&s?);
+            Some(acc)
+        })
 }
 
 fn filter_media(url: &str) -> bool {
@@ -242,37 +249,77 @@ fn filter_media(url: &str) -> bool {
         || IMAGE_SUFFIXES.iter().any(|&s| ext.eq_ignore_ascii_case(s))
 }
 
-#[allow(clippy::to_string_in_format_args)]
-fn extract_asset_url(content: &str, anonymous: bool) -> Vec<String> {
-    static A_SELECTOR: Lazy<Selector> = Lazy::new(|| Selector::parse("a").unwrap());
-    static IMG_SELECTOR: Lazy<Selector> = Lazy::new(|| Selector::parse("img").unwrap());
-    static SOURCE_SELECTOR: Lazy<Selector> = Lazy::new(|| Selector::parse("source").unwrap());
+struct ExtractAssetResult {
+    urls: Vec<String>,
+    rewritten_content: String,
+}
 
-    let doc = scraper::Html::parse_document(content);
+fn extract_asset_url(content: &str, anonymous: bool) -> ExtractAssetResult {
+    let urls = RefCell::new(vec![]);
 
-    let href_urls = doc
-        .select(&A_SELECTOR)
-        .filter_map(|a| a.value().attr("href"));
-    let img_urls = doc.select(&IMG_SELECTOR).flat_map(|img| {
-        let elem = img.value();
-        if anonymous && elem.has_class("avatar", CaseSensitivity::AsciiCaseInsensitive) {
-            return vec![];
+    let a_rule = element!("a", |el| {
+        if let Some(url) = el.get_attribute("src") {
+            if filter_media(&url) {
+                el.set_attribute("src", &format!("resources/{}", url_to_filename(&url)))?;
+                urls.borrow_mut().push(url);
+            }
         }
-
-        let mut srcset_imgs = elem.attr("srcset").map_or(vec![], parse_srcset);
-        if let Some(src_img) = elem.attr("src") {
-            srcset_imgs.push(src_img);
+        if let Some(srcset) = el.get_attribute("srcset") {
+            let mut srcset_imgs = vec![];
+            if let Some(srcset) = rewrite_srcset(&srcset, |url| {
+                if filter_media(url) {
+                    srcset_imgs.push(url.to_string());
+                    Some(format!("resources/{}", url_to_filename(url)))
+                } else {
+                    None
+                }
+            }) {
+                el.set_attribute("srcset", &srcset)?;
+                urls.borrow_mut().extend(srcset_imgs);
+            }
         }
-        srcset_imgs
+        Ok(())
     });
-    let source_urls = doc
-        .select(&SOURCE_SELECTOR)
-        .filter_map(|source| source.value().attr("src"));
 
-    href_urls
-        .chain(img_urls)
-        .chain(source_urls)
-        .filter(|url| filter_media(url))
-        .map(ToString::to_string)
-        .collect()
+    let img_n_source = if anonymous {
+        "img:not(.avatar), source"
+    } else {
+        "img, source"
+    };
+    let img_rule = element!(img_n_source, |el| {
+        if let Some(url) = el.get_attribute("src") {
+            if filter_media(&url) {
+                el.set_attribute("src", &format!("resources/{}", url_to_filename(&url)))?;
+                urls.borrow_mut().push(url);
+            }
+        }
+        if let Some(srcset) = el.get_attribute("srcset") {
+            let mut srcset_imgs = vec![];
+            if let Some(srcset) = rewrite_srcset(&srcset, |url| {
+                if filter_media(url) {
+                    srcset_imgs.push(url.to_string());
+                    Some(format!("resources/{}", url_to_filename(url)))
+                } else {
+                    None
+                }
+            }) {
+                el.set_attribute("srcset", &srcset)?;
+                urls.borrow_mut().extend(srcset_imgs);
+            }
+        }
+        Ok(())
+    });
+
+    let rewritten_content = rewrite_str(
+        content,
+        RewriteStrSettings {
+            element_content_handlers: vec![a_rule, img_rule],
+            ..RewriteStrSettings::default()
+        },
+    )
+    .unwrap();
+    ExtractAssetResult {
+        urls: urls.into_inner(),
+        rewritten_content,
+    }
 }
