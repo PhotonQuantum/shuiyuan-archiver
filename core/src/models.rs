@@ -88,7 +88,8 @@ pub struct RespPoll {
 pub struct RespPollOption {
     pub id: String,
     pub html: String,
-    pub votes: usize,
+    #[serde(default)]
+    pub votes: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -7,11 +7,12 @@ use futures::{stream, TryStreamExt};
 use lol_html::html_content::ContentType;
 use lol_html::{element, rewrite_str, RewriteStrSettings};
 use tap::TapFallible;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::action_code::ACTION_CODE_MAP;
 use crate::archiver::download_manager::DownloadManager;
 use crate::archiver::utils;
+use crate::archiver::utils::summarize;
 use crate::client::Client;
 use crate::error;
 use crate::models::{
@@ -201,7 +202,16 @@ pub fn reify_vote(post: RespPost) -> error::Result<RespPost> {
                     poll.name, option.id
                 ),
                 |el| {
-                    el.append(&format!(" - {} 票", option.votes), ContentType::Text);
+                    if let Some(votes) = option.votes {
+                        el.append(&format!(" - {votes} 票"), ContentType::Text);
+                        return Ok(());
+                    }
+                    let title = summarize(&option.html);
+                    warn!(
+                        "No vote count for option {} available. \
+                    Please check if results are protected (e.g. display on vote).",
+                        title.trim()
+                    );
                     Ok(())
                 }
             )
