@@ -1,6 +1,6 @@
 # 维护状态
 
-# 本项目现在已经不再积极维护，并正在征集维护者/替代品，见 [#25](issues/25)。
+# 本项目现在已经不再积极维护，并正在征集维护者/替代品，见 [#25](https://github.com/PhotonQuantum/shuiyuan-archiver/issues/25)。
 
 ---
 
